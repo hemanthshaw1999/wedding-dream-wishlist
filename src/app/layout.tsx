@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { connection } from "next/server";
 import { en } from "@/lib/strings";
 import "./globals.css";
 
@@ -9,7 +10,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false }
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  await connection();
   return (
     <html lang="en">
       <body>

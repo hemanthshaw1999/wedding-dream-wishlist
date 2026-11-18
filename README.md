@@ -22,7 +22,7 @@ These are researched candidates, **not configured provider accounts or deploymen
 |---|---|---|
 | Login | Self-hosted Better Auth, MIT license | Local verification/recovery and HTTPS/Secure-cookie configuration tested. No hosted identity vendor required; real mail/worker provisioning remains blocked. |
 | PostgreSQL | [Neon Free](https://neon.com/pricing): no card required, 1 GB/project, 100 CU-hours/project, 5 GB public egress/project; compute scales to zero after 5 minutes | Hosting candidate only; app already uses local PostgreSQL. Free recovery history is 6 hours with a 1 GB limit and one manual snapshot. Off-instance recovery is still required. |
-| Web hosting | [Netlify Free](https://www.netlify.com/pricing/): 300 credits/month; production deploys cost 15 credits, compute 10 credits/GB-hour, bandwidth 20 credits/GB, web requests 2 credits/10k | Candidate only. [Next.js support uses OpenNext](https://docs.netlify.com/build/frameworks/framework-setup-guides/nextjs/overview/). Our exact runtime, private-response caching, quotas and no-spend behavior must be verified before hosting; do not expose the local mailbox configuration. Use a provider subdomain initially, not a purchased domain. |
+| Web hosting | [Netlify Free](https://www.netlify.com/pricing/): 300 credits/month; production deploys cost 15 credits, compute 10 credits/GB-hour, bandwidth 20 credits/GB, web requests 2 credits/10k | Candidate only. [Next.js support uses OpenNext](https://docs.netlify.com/build/frameworks/framework-setup-guides/nextjs/overview/). Local project now targets supported Node 24, not Lambda's preview Node 26. Exact adapter/private-response caching/quotas/no-spend behavior still need verification. Default function region is Ohio; region customization requires Pro/Enterprise, so no free India-only residency is assumed. Do not expose the local mailbox configuration. |
 | Transactional email | [Resend Free](https://resend.com/pricing): 3,000 emails/month, 100/day | Disabled adapter + encrypted retry queue tested with a local transport fixture. [A domain you own/control must be verified](https://resend.com/docs/dashboard/domains/introduction). No free domain or unrestricted production delivery is assumed. No actual email was sent. |
 | Payments | Direct-to-couple UPI, no platform gateway or custody; guest report plus manual couple bank-record check | Direction selected, live recipient setup not implemented. QR generation does not establish receipt. Do not promise bank/provider verification or universal zero bank/app fees. |
 
@@ -34,7 +34,9 @@ No cloud-service enrollment, terms acceptance, real messages, paid plans, auto-r
 
 ## Prerequisites and exact versions
 
-Verified runtime: Node **26.13.0 LTS (Lithium)**, npm **11.20.0**, PostgreSQL **18.7**. Node's actual `process.release.lts` reports `Lithium`; no release-candidate SQLite driver remains in the runtime path. The project requires Node 26.13.x or later in the 26.x family.
+Current project runtime: Node **24.22.3 LTS (Krypton)**, npm **11.19.1**, PostgreSQL **18.7**. `.node-version` pins the build/runtime family; `package.json` requires Node 24.22.3 or later within 24.x. The official portable Windows archive was checked against its official SHA256 manifest: `E612AF99F626AB415EA225AF6BCE5C971FEB448CB5CAE250BB1C3FA50C5F7D9F`.
+
+Earlier local checkpoints used Node 26.13.0 LTS successfully. However, [AWS still marks its Node 26 Lambda runtime as preview/not for production](https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html). [Netlify's function runtime](https://docs.netlify.com/build/functions/configuration/?fn-language=js#node-js-version-for-runtime) follows supported Lambda versions and documents a Node 24 fallback. The project therefore targets stable Node 24 rather than relying on a host's silent runtime fallback. This is local runtime compatibility work, not a verified hosted OpenNext deployment.
 
 Pinned direct dependencies:
 
@@ -49,7 +51,7 @@ Pinned direct dependencies:
 | Vitest | 5.1.0 |
 | Playwright Test | 1.65.0 |
 | ESLint / eslint-config-next | 10.14.0 / 16.4.6 |
-| @types/node | 26.6.6 |
+| @types/node | 24.19.2 |
 | @types/react / @types/react-dom | 19.3.0 |
 | @types/qrcode | 1.5.6 |
 
@@ -61,6 +63,9 @@ Publication preparation removed workplace package-feed URLs from the lockfile. P
 
 ```powershell
 Set-Location 'C:\Users\hgadarla\projects\wedding-dream-wishlist'
+# On this computer only, select the isolated official Node 24 installation:
+$env:PATH = 'C:\Users\hgadarla\.local\share\wedding-wishlist-tools\node-v24.22.3-win-x64;' + $env:PATH
+node --version
 npm ci --ignore-scripts --no-fund --no-audit
 npm run db:local
 ```
@@ -182,7 +187,7 @@ docs/                                  decisions, schema, API, threat model, tes
 - PostgreSQL queries are parameterized. Exact integer-paise NUMERIC constraints reject fractional stored paise without rounding; the driver returns exact strings converted only after safe-integer checks. UTC ISO timestamp domains reject malformed dates; auth uses TIMESTAMPTZ.
 - Database transactions use per-key advisory locks and row locks for real concurrent retries/reviews/state changes. Deferred ledger constraints reject status/totals divergence at commit. Runtime grants protect history even if an application query is mistaken; administrators can still bypass database controls.
 - Remote PostgreSQL connections always verify TLS certificates; URL options cannot disable this. App startup and migration roles are separate. No runtime fallback to SQLite or an in-memory database exists.
-- CSP currently permits inline scripts/styles for Next rendering. Secure auth cookies are tested through HTTPS library requests; actual hosting/TLS/mail delivery, identity lifecycle review, nonce-based CSP, comprehensive accessibility verification and independent penetration testing remain launch blockers.
+- Scripts use fresh per-request CSP nonces and strict-dynamic without production unsafe-inline/eval; all pages render dynamically. Inline styles remain allowed for existing progress bars/Next styling. Actual parser-injected script blocking, hydration and development HMR were tested. This is defense in depth, not a substitute for safe rendering. Secure auth cookies are tested through HTTPS library requests; actual hosting/TLS/mail delivery, identity lifecycle review, comprehensive accessibility verification and broader security assessment remain launch blockers.
 
 ## Remaining increments - not implemented
 
@@ -191,4 +196,4 @@ docs/                                  decisions, schema, API, threat model, tes
 4. Direct-UPI launch gating and chosen live overfunding policy. Provider integration remains disabled and is unnecessary for manual reporting.
 5. Hardening, operational rehearsal, independent security/QA review and deployment preparation. Actual deployment requires explicit audience/cost approval.
 
-This checkpoint adds actual PostgreSQL durability and real-engine concurrency/restore validation. It does not claim that all requested production features are built.
+These checkpoints add PostgreSQL durability, HTTPS identity/email-delivery preparation, stable Node 24 compatibility and nonce-based script protection. They do not claim that all requested production features are built.

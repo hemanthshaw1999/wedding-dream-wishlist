@@ -35,7 +35,21 @@ async function account(request: APIRequestContext) {
 }
 
 test("verified account, persisted wishlist, anonymous report and audited manual confirmation", async ({ page, browser }, testInfo) => {
-  await page.goto("/owner");
+  await page.route("**/owner", async (route) => {
+    const response = await route.fetch();
+    const html = await response.text();
+    await route.fulfill({ response, body: html.replace("</head>",
+      `<script id="untrusted-csp-probe">document.documentElement.dataset.unauthorizedScript="executed"</script></head>`) });
+  });
+  const initial = await page.goto("/owner");
+  await page.unroute("**/owner");
+  const policy = initial?.headers()["content-security-policy"] ?? "";
+  const nonce = policy.match(/'nonce-([^']+)'/)?.[1];
+  expect(nonce).toBeDefined();
+  expect(policy.split(";").find((part) => part.trim().startsWith("script-src"))).not.toContain("'unsafe-inline'");
+  expect(await page.evaluate((expected) => Array.from(document.scripts)
+    .every((script) => script.id === "untrusted-csp-probe" || script.nonce === expected), nonce)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.dataset.unauthorizedScript)).toBeUndefined();
   await page.getByRole("button", { name: "Create an account", exact: true }).click();
   const email = `${randomUUID()}@example.test`;
   await page.getByLabel("Your display name").fill("Fictional owner");
