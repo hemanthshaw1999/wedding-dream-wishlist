@@ -1,20 +1,20 @@
 # Deployment preparation and launch blockers
 
-For implemented local self-hosted authentication, synthetic report/confirmation and CSV functionality, see `current-increment.md`. Production delivery, PostgreSQL, live UPI and external-action gates below remain in force; unchecked feature statuses from checkpoint 1 are historical where superseded.
+For current implementation status, placeholders, service scopes and Codex instructions, start with `..\CODEX-HANDOFF.md` and `current-increment.md`. The checklist and source log below include historical checkpoint-1 material; the handoff distinguishes implemented PostgreSQL/auth from unfinished features and external setup.
 
-**No public deployment, external account, repository publication, domain purchase, paid service, terms acceptance, recipient onboarding or real payment is approved or performed.** These are review instructions, not executed actions.
+**Private personal GitHub publication was authorized and completed. No public deployment, hosting/email-provider enrollment, domain purchase, paid service, external provider terms acceptance, recipient onboarding or real payment was performed.** External setup and public exposure still need explicit owner approval. These are review instructions, not executed actions.
 
 ## Environment plan
 
-**Confirmed target:** publicly hosted, responsive app with anonymous external guests. Local-only is an incremental test environment, not the intended launch scope. The hosted database direction is PostgreSQL, separate from application processes and on durable storage. The existing runnable implementation still uses SQLite and must not be represented as already migrated.
+**Confirmed target:** publicly hosted, responsive app with anonymous external guests. Local-only is an incremental test environment, not the intended launch scope. The actual database is now PostgreSQL, separate from application processes and on durable storage. Hosted PostgreSQL provisioning remains undone; no SQLite-to-production conversion is claimed.
 
-1. **Local synthetic demo (now):** loopback-only Node + SQLite, fake owner, no real transfers. Build/test artifact is executable locally, not a public product.
-2. **Private staging (future approval):** separate reviewed runtime, maintained auth, PostgreSQL and migrations, synthetic data and provider sandbox only. Network audience must be explicitly approved. No production credentials/data copied into staging.
+1. **Local synthetic demo (now):** loopback-only Node + PostgreSQL, separate authenticated fictional accounts and terminal-only mail, no real transfers. Build/test artifact is executable locally, not a public product.
+2. **Private staging (future approval):** separate reviewed runtime, maintained auth, PostgreSQL and migrations, synthetic data and approved controlled email tests only. Network audience must be explicitly approved. No production credentials/data copied into staging.
 3. **Pilot/production (separate approval):** HTTPS and a real domain/approved hosting address, isolated credentials/PostgreSQL, defined owners, financial/legal/provider gates, monitoring and restore procedure.
 
 Failure domains: app process down -> database remains intact and app can restart; database process down -> fail writes honestly and recover/restart without inventing success; disk/host loss -> recover from a separately stored backup or replica; regional/provider loss -> requires a separately approved disaster-recovery strategy. One PostgreSQL instance alone is not high availability, and a backup kept on the same failed machine is not disaster recovery.
 
-Do not upload this local-demo build to hosting. The default launcher is intentionally local-only and real authentication is absent. Removing a gate is not a production migration. Select/review the final Next-only or Next+Spring architecture and hosting/runtime support before preparing provider-specific commands.
+Do not upload the default local-demo configuration to hosting. The default launcher is intentionally local-only. Maintained authentication and production identity/email configuration are implemented, but deployment, live email and remaining product features are not. Removing a gate is not a production migration. Retain the existing Next.js/TypeScript/PostgreSQL architecture and verify the chosen hosting adapter/runtime before launch.
 
 ## Approval request format - before each external action
 

@@ -16,3 +16,4 @@ coverage/
 *.pfx
 .env*
 !.env.example
+!.env.production.example
