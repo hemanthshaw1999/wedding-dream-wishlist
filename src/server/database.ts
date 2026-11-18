@@ -30,9 +30,30 @@ export function poolOptions(connectionString: string) {
 export class Database {
   readonly pool: Pool;
   private readonly client?: PoolClient;
-  constructor(pool: Pool, client?: PoolClient) { this.pool = pool; this.client = client; }
+  private readonly environments?: readonly DatabaseEnvironment[];
+  private verification?: Promise<void>;
+  constructor(pool: Pool, client?: PoolClient, environments?: readonly DatabaseEnvironment[]) {
+    this.pool = pool; this.client = client; this.environments = environments;
+  }
+
+  async ready(): Promise<void> {
+    if (!this.environments) return;
+    this.verification ??= (async () => {
+      const marker = await this.pool.query("SELECT value FROM app_metadata WHERE key='environment'");
+      if (!this.environments?.includes(marker.rows[0]?.value)) throw new Error("Runtime database environment does not match.");
+      const role = await this.pool.query(`SELECT rolsuper,rolcreatedb,rolcreaterole,rolbypassrls,
+        has_schema_privilege(current_user,current_schema(),'CREATE') AS schema_create,
+        EXISTS(SELECT 1 FROM pg_class WHERE relnamespace=current_schema()::regnamespace
+          AND relkind IN ('r','p') AND pg_has_role(current_user,relowner,'MEMBER')) AS owns_tables
+        FROM pg_roles WHERE rolname=current_user`);
+      const permissions = role.rows[0];
+      if (!permissions || Object.values(permissions).some(Boolean)) throw new Error("A restricted non-owning runtime database role is required.");
+    })().catch((error: unknown) => { this.verification = undefined; throw error; });
+    await this.verification;
+  }
 
   async all<Row extends QueryResultRow = Record<string, unknown>>(sql: string, values: readonly unknown[] = []): Promise<Row[]> {
+    await this.ready();
     return (await (this.client ?? this.pool).query<Row>(sql, [...values])).rows;
   }
 
@@ -41,11 +62,13 @@ export class Database {
   }
 
   async run(sql: string, values: readonly unknown[] = []): Promise<void> {
+    await this.ready();
     await (this.client ?? this.pool).query(sql, [...values]);
   }
 
   async transaction<T>(work: (db: Database) => Promise<T>): Promise<T> {
     if (this.client) throw new Error("Nested database transactions are not supported.");
+    await this.ready();
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
@@ -64,10 +87,10 @@ export class Database {
   }
 }
 
-export function openDatabase(connectionString: string): Database {
+export function openDatabase(connectionString: string, environments?: readonly DatabaseEnvironment[]): Database {
   const pool = new Pool(poolOptions(connectionString));
   pool.on("error", () => console.error(JSON.stringify({ event: "database_connection_error" })));
-  return new Database(pool);
+  return new Database(pool, undefined, environments);
 }
 
 export async function migrate(db: Database, environment: DatabaseEnvironment) {
@@ -80,7 +103,7 @@ export async function migrate(db: Database, environment: DatabaseEnvironment) {
       if (marker?.value !== environment) throw new Error("Database environment does not match; no migration applied.");
     }
     await tx.run("CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())");
-    for (const [version, file] of [[1, "001_core.sql"], [2, "002_auth.sql"], [3, "003_optional_timestamp.sql"]] as const) {
+    for (const [version, file] of [[1, "001_core.sql"], [2, "002_auth.sql"], [3, "003_optional_timestamp.sql"], [4, "004_auth_email.sql"]] as const) {
       if (!await tx.get("SELECT version FROM schema_migrations WHERE version=$1", [version])) {
         await tx.run(readFileSync(resolve("migrations", "postgres", file), "utf8"));
         if (version === 1) await tx.run("INSERT INTO app_metadata VALUES('environment',$1)", [environment]);
@@ -96,7 +119,7 @@ export async function grantRuntime(db: Database, role: string) {
   for (const table of ["app_metadata", "schema_migrations"]) await db.run(`GRANT SELECT ON ${table} TO "${role}"`);
   for (const table of ["users", "memberships", "audit_entries", "recipient_snapshots", "claim_events"]) await db.run(`GRANT SELECT,INSERT ON ${table} TO "${role}"`);
   for (const table of ["wishlists", "goals", "contributions"]) await db.run(`GRANT SELECT,INSERT,UPDATE ON ${table} TO "${role}"`);
-  for (const table of ["auth_users", "auth_sessions", "auth_accounts", "auth_verifications", "auth_rate_limits", "rate_limits", "auth_local_outbox"]) {
+  for (const table of ["auth_users", "auth_sessions", "auth_accounts", "auth_verifications", "auth_rate_limits", "rate_limits", "auth_local_outbox", "auth_email_outbox", "auth_email_budgets"]) {
     await db.run(`GRANT SELECT,INSERT,UPDATE,DELETE ON ${table} TO "${role}"`);
   }
 }
@@ -113,6 +136,6 @@ export function configuredDatabaseUrl(): string {
 
 let connection: Database | undefined;
 export function getDatabase(): Database {
-  connection ??= openDatabase(configuredDatabaseUrl());
+  connection ??= openDatabase(configuredDatabaseUrl(), process.env.APP_ENV === "production" ? ["production"] : ["synthetic-demo-only", "test"]);
   return connection;
 }

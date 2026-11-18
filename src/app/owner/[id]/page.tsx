@@ -4,7 +4,7 @@ import { OwnerControls } from "@/components/owner-controls";
 import { WishlistView } from "@/components/wishlist-view";
 import { AppError } from "@/lib/errors";
 import { getDatabase } from "@/server/database";
-import { localOrigin, requireOwner } from "@/server/http";
+import { applicationOrigin, requireOwner } from "@/server/http";
 import { WishlistStore } from "@/server/store";
 import { ClaimsStore } from "@/server/claims-store";
 import { ClaimsDashboard } from "@/components/claims-dashboard";
@@ -25,5 +25,5 @@ export default async function Preview({ params }: { params: Promise<{ id: string
     }
     throw error;
   }
-  return <><OwnerControls wishlist={wishlist} origin={localOrigin()} /><ClaimsDashboard wishlistId={wishlist.id} initial={reports} /><WishlistView wishlist={wishlist} preview /></>;
+  return <><OwnerControls wishlist={wishlist} origin={applicationOrigin()} /><ClaimsDashboard wishlistId={wishlist.id} initial={reports} /><WishlistView wishlist={wishlist} preview /></>;
 }

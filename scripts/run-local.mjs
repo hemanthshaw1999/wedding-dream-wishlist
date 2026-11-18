@@ -7,6 +7,7 @@ import { configuredDatabaseUrl, openDatabase } from "../src/server/database.ts";
 const mode = process.argv[2];
 if (!["dev", "start"].includes(mode)) throw new Error("Use dev or start.");
 const e2e = process.argv.includes("--e2e");
+if (process.env.APP_ENV === "production") throw new Error("The local launcher cannot run production configuration.");
 process.env.DEMO_MODE = "local-only";
 const fixture = e2e ? await (await import("../tests/db-fixture.ts")).createTestDatabase({
   name: process.env.E2E_DB_NAME, restrictedRuntime: true

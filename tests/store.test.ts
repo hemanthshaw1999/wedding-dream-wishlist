@@ -112,12 +112,16 @@ describe("PostgreSQL durability and tenant boundaries", () => {
   });
   it("uses a runtime role that cannot alter schemas or delete financial history", async () => {
     const restricted = await createTestDatabase({ restrictedRuntime: true });
-    const runtime = openDatabase(restricted.runtimeUrl);
+    const runtime = openDatabase(restricted.runtimeUrl, ["test"]);
+    const mismatched = openDatabase(restricted.runtimeUrl, ["production"]);
+    const privileged = openDatabase(restricted.connectionString, ["test"]);
     try {
+      await expect(mismatched.ready()).rejects.toThrow("environment");
+      await expect(privileged.ready()).rejects.toThrow("restricted");
       await expect(runtime.run("CREATE TABLE unsafe(value TEXT)")).rejects.toThrow("permission denied");
       await expect(runtime.run("ALTER TABLE contributions DISABLE TRIGGER ALL")).rejects.toThrow("owner");
       await expect(runtime.run("DELETE FROM claim_events")).rejects.toThrow("permission denied");
       await expect(runtime.run("UPDATE schema_migrations SET version=999")).rejects.toThrow("permission denied");
-    } finally { await runtime.close(); await restricted.cleanup(); }
+    } finally { await runtime.close(); await mismatched.close(); await privileged.close(); await restricted.cleanup(); }
   });
 });

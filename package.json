@@ -8,6 +8,7 @@
     "dev": "node scripts/run-local.mjs dev",
     "build": "next build",
     "start": "node scripts/run-local.mjs start",
+    "start:production": "node --experimental-strip-types scripts/run-production.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -16,6 +17,7 @@
     "demo:reset": "node --experimental-strip-types scripts/seed.ts --reset-synthetic-demo",
     "demo:backup": "node --experimental-strip-types scripts/backup.ts",
     "auth:mailbox": "node scripts/mailbox.mjs",
+    "auth:deliver": "node --experimental-strip-types scripts/send-email.ts",
     "db:local": "node scripts/local-postgres.mjs",
     "db:migrate": "node --experimental-strip-types scripts/migrate.ts"
   },

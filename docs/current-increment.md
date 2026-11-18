@@ -1,4 +1,4 @@
-# Current increment: PostgreSQL durability, accounts and manual reports
+# Current increment: PostgreSQL, HTTPS identity and private email delivery preparation
 
 This supersedes checkpoint-1 statements that auth/reports were absent or that a shared fictional account could be entered. The release target remains a hosted responsive wedding app, **not yet production ready**.
 
@@ -35,9 +35,24 @@ The executed `getMigrations(auth.options).compileMigrations()` supplied `migrati
 
 Local rules: fictional `@example.test` registrations only; 12-128 character passwords; verified email required; generic sign-in/recovery UI and enumeration-resistant signup; sessions one hour with library cookie caching disabled. Cookies are HttpOnly/SameSite=Strict, **not Secure on local HTTP**. Signing out/recovery revokes persisted sessions. Per-email and global database-backed application rate buckets complement library limits.
 
-Verification/recovery use a private `auth_local_outbox` table. **No email is sent.** `npm run auth:mailbox` is a terminal-only credential viewer, never an HTTP endpoint. Links expire under the auth library; new enqueue operations purge outbox rows older than one hour. The launcher generates a persistent secret in ignored `data\local-auth-secret.txt`, never prints it, and passes it server-side. On Windows, POSIX file modes do not substitute for reviewed account/ACL isolation. This local delivery/secrets setup must not be publicly exposed.
+Local verification/recovery use a private `auth_local_outbox` table. **No email is sent.** `npm run auth:mailbox` is a terminal-only credential viewer, never an HTTP endpoint. Links expire under the auth library; new enqueue operations purge outbox rows older than one hour. The launcher generates a persistent secret in ignored `data\local-auth-secret.txt`, never prints it, and passes it server-side. On Windows, POSIX file modes do not substitute for reviewed account/ACL isolation. This local delivery/secrets setup must not be publicly exposed.
 
 `/api/demo-session` POST is retired (410). Old seeded wishlists are not silently transferred to newly registered owners. Application identities in the demo remain marked synthetic; auth identities are separately stored and mapped by immutable ID, not display name. Legacy SQLite accounts have not been silently imported into the new PostgreSQL demo.
+
+### Production identity increment
+
+Implemented separate exact-origin HTTPS configuration, Secure/HttpOnly/SameSite=Strict cookies, real-account identity mapping, mode-aware authentication messages and a fail-closed `start:production` entrypoint. Root runtime connections check environment markers and reject administrator/schema-owner privileges before queries; the auth library's direct Pool access waits for this same check. Local and production modes cannot be combined. Public payment surfaces remain explicitly synthetic; production auth configuration is **not product launch readiness**.
+
+Migration 004 adds an encrypted authentication-email outbox and persistent UTC delivery-attempt budgets. AES-256-GCM protects queued recipients and private credential links using an independent server key and authenticated job metadata. Final payloads are cleared, finalized metadata is pruned after seven days during worker invocations, and processing expires verification/recovery jobs earlier than the auth library's tokens. Inactive workers delay cleanup. This does not encrypt the entire database/library session tables or defend against a compromised application server.
+
+The fixed-endpoint Resend adapter is implemented but **no provider account, verified sender, real key, scheduler or email delivery is configured**. Explicit approval/sender/key gates precede database use in its CLI. Provider signatures/webhooks are not relevant to this outbound email adapter, and no tracking webhook/pixel was added. Official API and 24-hour idempotency documentation:
+
+- https://resend.com/docs/api-reference/emails/send-email
+- https://resend.com/docs/dashboard/emails/idempotency-keys
+
+One job per `auth:deliver` invocation, row locks/expiring leases/fencing tokens, immutable encrypted request bodies, persisted idempotency keys, bounded retries/backoff and maximum five attempts handle uncertain acknowledgements/crashes. `accepted` means a provider ID was acknowledged, not inbox delivery. Exhausted uncertain outcomes remain `unknown`. Atomic budgets conservatively count retries too, stopping at 90 attempts/day and 2,700/month. They cannot control other applications/manual account usage or establish the provider's actual billing settings. Approved dedicated free-plan setup and supervised worker invocation at least once per minute remain launch gates.
+
+Actual tests use real PostgreSQL/restricted roles and a **local mocked transport**, including concurrent workers/enqueues, retry after lost acknowledgement with identical provider key/body, worker crash/lease fencing, daily/monthly quota races, expiry, corrupt ciphertext, rejected/rate-limited/unavailable provider responses, malformed success, HTTPS verification and single-use recovery with session revocation. No actual provider delivery is claimed.
 
 ## Actual migrated ER additions
 
@@ -83,7 +98,7 @@ All application mutations still require exact Host/Origin, JSON and a bounded re
 
 | Endpoint | Contract |
 |---|---|
-| `/api/auth/*` | Maintained Better Auth routes, server origin/body/rate guards. Signup restricted to synthetic email addresses, no remote profile image |
+| `/api/auth/*` | Maintained Better Auth routes, server origin/body/rate guards. Local signup restricted to synthetic email addresses; approved HTTPS identity uses queued verification. No remote profile image |
 | POST `/api/public/wishlists/{slug}/reports` | `{goalId,recipientSnapshotId,amount,currency:"INR",guestName?,guestMessage?,reference?,token}`; validated 256-bit key; returns own receipt/status; no auth required |
 | POST `/api/guest/status` | `{token}`; scoped receipt only or uniform 404 for invalid/expired key; max 7-day status capability |
 | GET `/api/owner/wishlists/{id}/reports?status=all&page=1` | Owner-only, 50 rows/page plus separate reported/review/owner-confirmed/rejected totals |
@@ -116,12 +131,24 @@ Private URLs use `/gift-status#<random-key>`: fragment not sent in the server UR
 
 PostgreSQL checkpoint validation: lint/typecheck passed; **82 unit/integration tests in 6 files passed** in the final combined run; optimized build and **6/6 desktop/mobile E2E passed against a restricted PostgreSQL role** after the private-notice/external-driver changes. Native seed and main-database snapshot/restore also passed. A controlled termination/restart of this project's PostgreSQL process preserved the baseline row counts and returned a writable primary. This tests process restart, not high availability, power-loss guarantees or disk-loss recovery. No physical-device UPI test, full WCAG assessment or independent completed-code security assessment is claimed.
 
-Dependency advisory audit for the new dependency set: **BLOCKED by registry HTTP 429**. The old zero-advisory result is historical and not reused as a claim for Better Auth. No registry policy/configuration was bypassed or changed.
+Latest identity-increment validation: lint/typecheck and optimized build passed. A combined **101-test/8-file** suite passed before the final three added guard tests; the final focused config/HTTP/email runner passed **29/29**, including those three and HTTPS recovery. Four browser cases passed initially; the other two found an outdated assertion of intentionally changed session-expiry text. After correcting that selector, **2/2 targeted desktop/mobile cases passed**. No unresolved browser failure is hidden as a successful full-suite run.
+
+A fresh `npm audit --omit=dev --audit-level=low` completed with **0 reported production dependency vulnerabilities** for this lockfile. The earlier HTTP 429 is historical; this audit does not cover development dependencies or prove application security.
+
+A read-only security-review agent inspected the auth/email increment and immediate integration, reporting **no vulnerabilities identified in the scoped changes**. This is not a full-product penetration test or a security guarantee. Unverified assumptions: deployed Host/Origin/TLS/no-cache behavior; correctly provisioned production DB marker/role; actual provider idempotency/acknowledgements/live delivery. No tests or deployment were executed by that reviewer.
+
+| # | Severity | File | Lines | Vulnerability | Confidence |
+|---|----------|------|-------|---------------|------------|
+| - | - | Auth/email increment | - | No vulnerabilities identified in scoped review | - |
+
+Persistent preview was restarted and checked in Chromium: home/owner/seeded guest HTTP 200, anonymous owner API 401, retired shared entry 410, no observed hydration errors or checked mobile horizontal overflow. Desktop home, mobile guest and 320px owner screenshots were inspected. The URL remains `http://127.0.0.1:4317`, accessible only on this computer, not public hosting.
+
+Hosting research found an additional runtime gate: [Netlify](https://docs.netlify.com/build/functions/configuration/?fn-language=js#node-js-version-for-runtime) bases its function runtime on Lambda and documents Node 24 fallback; [AWS](https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html) currently labels its Node 26 runtime **preview, not for production**, even though this computer's Node 26 language release is LTS. Production-host compatibility must be validated on supported Node 24 before choosing that path. Netlify's default function region is Ohio and region customization is documented as Pro/Enterprise; no free India-only residency is assumed.
 
 ## Remaining release blockers / uncovered risks
 
 Local PostgreSQL is implemented; hosted provisioning, separate hosted failure domains and off-instance disaster recovery remain unimplemented. There is no application/runtime SQLite dependency. Working local accounts/reporting do not authorize public deployment.
 
-Live UPI-ID/QR setup, safe QR-image decoding/re-encoding if selected, recipient reauthentication/change history, stale instructions, real external verification/recovery delivery, legal/privacy review, actual retention/deletion, moderation/support, stronger CSP/TLS/Secure cookies, dependency audit clearance, encrypted off-instance backups/restore, load/browser/accessibility/security review and explicit hosting approval remain. No money or screenshots are moved/uploaded, no external messages sent.
+Live UPI-ID/QR setup, safe QR-image decoding/re-encoding if selected, recipient reauthentication/change history, stale instructions, actual hosted verification/recovery delivery/worker scheduling, legal/privacy review, actual retention/deletion, goal editing/history, moderation/support, stronger CSP/deployed TLS, encrypted off-instance backups/restore, broader load/browser/accessibility/security review and provider-specific hosting approval remain. Live overfunding policy still needs a decision. No money or screenshots are moved/uploaded, no external messages sent.
 
 Self-hosted open-source auth is free software, not free hosting or a security guarantee. Local credential files, cluster files and backups are accessible to trusted filesystem users; library session/verification data follow the library's format (do not assume all tokens are hashed). Keep data, backups and auth secrets out of source control.

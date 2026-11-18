@@ -2,7 +2,7 @@
 
 **Demo - no real money. Use synthetic data only. This is not a production-ready or publicly deployed product.**
 
-**Current increment:** real **PostgreSQL 18.7** persistence independent from the web process, restricted runtime role, concurrent/idempotent gift reports, audited confirmation/reversal and tested native backup/restore. Self-hosted **Better Auth 1.7.21 (MIT)** handles accounts; delivery is still a private local mailbox. No hosted identity or payment service is used. **See `docs/current-increment.md` for current results and launch blockers.**
+**Current increment:** real **PostgreSQL 18.7** persistence, restricted runtime role, concurrent/idempotent gift reports, audited confirmation/reversal and tested native backup/restore. Self-hosted **Better Auth 1.7.21 (MIT)** now also supports HTTPS-only production configuration and an encrypted, leased authentication-email queue. Local delivery remains a private fictional mailbox; the Resend adapter has only used a mocked transport, never real email. **See `docs/current-increment.md` for current results and launch blockers.**
 
 ## What actually runs
 
@@ -16,14 +16,14 @@ The server stores an actual on-disk database. Anonymous browsers can access inte
 
 ## Free-service evaluation - 19 November 2026
 
-These are researched candidates, **not configured accounts, integrations or deployments**. Free usage limits can change. Open-source software has no software license charge here; running it still needs compute, storage and operations. No service or software can guarantee zero data leaks.
+These are researched candidates, **not configured provider accounts or deployments**. A disabled Resend adapter is implemented and tested against a local fixture. Free usage limits can change. Open-source software has no software license charge here; running it still needs compute, storage and operations. No service or software can guarantee zero data leaks.
 
 | Component | Candidate and verified limits | Current status / important limitation |
 |---|---|---|
-| Login | Self-hosted Better Auth, MIT license | Implemented locally. No hosted identity vendor required; production verification/recovery delivery remains unfinished. |
+| Login | Self-hosted Better Auth, MIT license | Local verification/recovery and HTTPS/Secure-cookie configuration tested. No hosted identity vendor required; real mail/worker provisioning remains blocked. |
 | PostgreSQL | [Neon Free](https://neon.com/pricing): no card required, 1 GB/project, 100 CU-hours/project, 5 GB public egress/project; compute scales to zero after 5 minutes | Hosting candidate only; app already uses local PostgreSQL. Free recovery history is 6 hours with a 1 GB limit and one manual snapshot. Off-instance recovery is still required. |
 | Web hosting | [Netlify Free](https://www.netlify.com/pricing/): 300 credits/month; production deploys cost 15 credits, compute 10 credits/GB-hour, bandwidth 20 credits/GB, web requests 2 credits/10k | Candidate only. [Next.js support uses OpenNext](https://docs.netlify.com/build/frameworks/framework-setup-guides/nextjs/overview/). Our exact runtime, private-response caching, quotas and no-spend behavior must be verified before hosting; do not expose the local mailbox configuration. Use a provider subdomain initially, not a purchased domain. |
-| Transactional email | [Resend Free](https://resend.com/pricing): 3,000 emails/month, 100/day | Candidate only. [A domain you own/control must be verified](https://resend.com/docs/dashboard/domains/introduction). No free domain or unrestricted production email delivery is assumed. The local mailbox sends no actual email. |
+| Transactional email | [Resend Free](https://resend.com/pricing): 3,000 emails/month, 100/day | Disabled adapter + encrypted retry queue tested with a local transport fixture. [A domain you own/control must be verified](https://resend.com/docs/dashboard/domains/introduction). No free domain or unrestricted production delivery is assumed. No actual email was sent. |
 | Payments | Direct-to-couple UPI, no platform gateway or custody; guest report plus manual couple bank-record check | Direction selected, live recipient setup not implemented. QR generation does not establish receipt. Do not promise bank/provider verification or universal zero bank/app fees. |
 
 [Render's free-service documentation](https://render.com/docs/free) explicitly says not to use free instances for production. Web services sleep after 15 idle minutes, lose local files on restart, and free PostgreSQL expires after 30 days without backups. Do not use that database for persistent wedding records. [Supabase's default email delivery](https://supabase.com/docs/guides/auth/auth-smtp) is also not a production substitute: currently team-only recipients, 2 messages/hour and no delivery SLA without custom SMTP.
@@ -93,7 +93,21 @@ npm run build
 npm start
 ```
 
-Do not expose either command through a public tunnel or reverse proxy. Running `next start` without the explicit local demo configuration returns 503 for app requests. A publicly deployed demo is not authorized.
+Do not expose these local commands through a public tunnel or reverse proxy. Unconfigured app requests return 503. `npm start` explicitly refuses `APP_ENV=production`; it does not switch a local demo into a hosted release.
+
+## Production identity preparation - not launch approval
+
+`npm run start:production` is a separate, fail-closed Node entrypoint. It requires `APP_ENV=production`, an exact HTTPS `APP_ORIGIN`, a separately generated 48-byte hex auth secret, an appropriately marked/migrated **production** PostgreSQL database and a restricted non-owning runtime role. It rejects the local demo gate and does not create/migrate a database itself. Managed/serverless hosting must still be validated separately; merely setting environment variables is not a tested deployment.
+
+Production authentication additionally requires a verified sender, separately generated 32-byte email encryption key and explicit `EMAIL_DELIVERY_APPROVED=resend-free`/`EMAIL_SENDER_VERIFIED=yes` attestations. These flags are **operator approvals, not automated checks of DNS, legal compliance or the provider's plan**. Keep them unset until approved setup. The `.env.example` contains placeholders only. Keep the provider API key on the worker, not in the browser or source repository.
+
+Authentication requests enqueue AES-256-GCM encrypted address/link/message payloads in PostgreSQL. Only the worker decrypts for the provider call. Verification jobs stop retrying after 25 minutes, recovery jobs after 10 minutes; the underlying auth library independently enforces token expiry. Finalized/expired payloads are cleared during processing, and final metadata is pruned after seven days during worker runs. An offline worker delays expiry cleanup; this is not database-wide encryption or protection against a compromised app server. Library authentication/session records use the maintained library's own storage format.
+
+After provider/account/sender/region/terms/free-plan approval and secure configuration, `npm run auth:deliver` processes **at most one job**. Arrange supervised invocations at least once per minute on an approved host, monitor queue delay/outcomes, and alert if processing stops. No scheduler or live worker is provisioned. The worker never prints addresses, URLs, credentials or provider error bodies.
+
+The fixed HTTPS [Resend send endpoint](https://resend.com/docs/api-reference/emails/send-email) uses persisted [`Idempotency-Key`](https://resend.com/docs/dashboard/emails/idempotency-keys) values. Provider retention is 24 hours; application retries expire much sooner. Row leases, fencing tokens, retries/backoff and maximum five attempts handle worker crashes and uncertain acknowledgements. `accepted` means the provider acknowledged an email ID, **not inbox delivery**. Unknown outcomes are not labeled delivered. No email webhook/tracking pixel is enabled.
+
+Persistent UTC budgets count **all transport attempts, including retries**, with conservative ceilings of 90/day and 2,700/month. They cannot be raised through worker options. Exhaustion stops processing, not paid upgrades. This cannot control other applications/manual sends on the provider account or establish the account's billing plan; use an approved dedicated setup and disable paid/automatic upgrades with the provider. Real sender verification, delivery/recovery, queue scheduling, no-spend behavior and exact hosting/runtime support remain launch gates. No product launch or real UPI is enabled by this increment.
 
 ## Checks
 
@@ -110,7 +124,7 @@ npm audit --omit=dev --audit-level=low
 
 Browser download is a development prerequisite, not a hosted service; it uses disk/network bandwidth. Browser binaries stay in ignored `data\browsers`. E2E starts an optimized loopback server on port 4318 with a separate synthetic database, never the main seed database. Do not have another server listening there. Firefox, Safari/WebKit, physical UPI apps and a real screen reader have not been tested.
 
-See `docs/current-increment.md` for **current actual** verification and `docs/test-matrix.md` for the historical/full backlog. A test plan is not a passing test result. The latest advisory audit attempt was registry-rate-limited (HTTP 429); the old zero-advisory result does not cover this new dependency set.
+See `docs/current-increment.md` for **current actual** verification and `docs/test-matrix.md` for the historical/full backlog. A test plan is not a passing test result. A fresh `npm audit --omit=dev --audit-level=low` completed with **0 reported production dependency vulnerabilities** for the current lockfile; it does not prove that the application is secure or cover development dependencies.
 
 ## Synthetic reset, backup and recovery
 
@@ -158,7 +172,7 @@ docs/                                  decisions, schema, API, threat model, tes
 ## Implemented boundaries and honest limitations
 
 - INR is parsed from plain decimal strings into safe, bounded integer paise. Targets: INR 0.01 to INR 1,00,00,000. Currency and owner/payment overrides are rejected.
-- Up to 20 goals; bounded text/body sizes. No remote image fetching, uploads, HTML rendering, marketing, analytics, email or payment APIs.
+- Up to 20 goals; bounded text/body sizes. No remote image fetching, uploads, HTML rendering, marketing, analytics or payment APIs. The disabled email adapter uses only a fixed provider endpoint after separate approval.
 - App/auth mutations require matching Host/Origin plus JSON. Token-protected auth verification/recovery GETs are maintained-library link ceremonies. Owner operations require an unexpired Better Auth session with verified email. Ownership is independent of display names; real HTTP cross-account isolation is tested.
 - Guest reports are unverified. Only explicit authenticated owner confirmation adds to demo progress. Reversal appends an opposite ledger effect; no existing event is deleted. Duplicate references trigger review, never proof.
 - Demo report limits: INR 1 to INR 1,00,000. A 256-bit private key is also its idempotency key; only its hash is stored. Names/messages stay private; aggregate progress may allow amount inference. Private status expires after seven days.
@@ -168,7 +182,7 @@ docs/                                  decisions, schema, API, threat model, tes
 - PostgreSQL queries are parameterized. Exact integer-paise NUMERIC constraints reject fractional stored paise without rounding; the driver returns exact strings converted only after safe-integer checks. UTC ISO timestamp domains reject malformed dates; auth uses TIMESTAMPTZ.
 - Database transactions use per-key advisory locks and row locks for real concurrent retries/reviews/state changes. Deferred ledger constraints reject status/totals divergence at commit. Runtime grants protect history even if an application query is mistaken; administrators can still bypass database controls.
 - Remote PostgreSQL connections always verify TLS certificates; URL options cannot disable this. App startup and migration roles are separate. No runtime fallback to SQLite or an in-memory database exists.
-- CSP currently permits inline scripts/styles for Next rendering. Production mail delivery/identity lifecycle review, nonce-based CSP, Secure cookies/TLS, comprehensive accessibility verification and independent penetration testing remain launch blockers.
+- CSP currently permits inline scripts/styles for Next rendering. Secure auth cookies are tested through HTTPS library requests; actual hosting/TLS/mail delivery, identity lifecycle review, nonce-based CSP, comprehensive accessibility verification and independent penetration testing remain launch blockers.
 
 ## Remaining increments - not implemented
 

@@ -1,12 +1,21 @@
 import { randomUUID } from "node:crypto";
 import { betterAuth } from "better-auth";
 import { getDatabase, type Database } from "./database.ts";
+import { authenticationConfig, emailOutboxConfig } from "./config.ts";
+import { enqueueAuthEmail } from "./email.ts";
 
-type AuthOptions = { database: Database; origin: string; secret: string };
+type AuthOptions = {
+  database: Database; origin: string; secret: string;
+  deliver?: (recipient: string, url: string, kind: "verification" | "recovery") => Promise<void>;
+};
 
-export function createAuth({ database, origin, secret }: AuthOptions) {
+export function createAuth({ database, origin, secret, deliver }: AuthOptions) {
   if (secret.length < 48) throw new Error("An independently generated auth secret is required.");
+  const secure = new URL(origin).protocol === "https:";
+  if (!secure && !/^http:\/\/127\.0\.0\.1:\d{4,5}$/.test(origin)) throw new Error("Authentication requires HTTPS outside the loopback demo.");
+  if (secure && !deliver) throw new Error("HTTPS authentication requires a configured private email delivery adapter.");
   async function enqueue(recipient: string, url: string, kind: "verification" | "recovery") {
+    if (deliver) return deliver(recipient, url, kind);
     if (!recipient.endsWith("@example.test")) throw new Error("Local mailbox only accepts fictional @example.test addresses.");
     await database.run("DELETE FROM auth_local_outbox WHERE created_at<$1", [new Date(Date.now() - 3_600_000).toISOString()]);
     await database.run("INSERT INTO auth_local_outbox VALUES($1,$2,$3,$4,$5)", [randomUUID(), recipient, kind, url, new Date().toISOString()]);
@@ -38,8 +47,8 @@ export function createAuth({ database, origin, secret }: AuthOptions) {
       sendVerificationEmail: async ({ user, url }) => enqueue(user.email, url, "verification")
     },
     advanced: {
-      useSecureCookies: false,
-      defaultCookieAttributes: { httpOnly: true, sameSite: "strict", secure: false },
+      useSecureCookies: secure,
+      defaultCookieAttributes: { httpOnly: true, sameSite: "strict", secure },
       ipAddress: { disableIpTracking: true }
     },
     rateLimit: {
@@ -60,10 +69,14 @@ export function createAuth({ database, origin, secret }: AuthOptions) {
 }
 
 let instance: ReturnType<typeof createAuth> | undefined;
-export function getAuth() {
-  const origin = process.env.APP_ORIGIN;
-  const secret = process.env.BETTER_AUTH_SECRET;
-  if (process.env.DEMO_MODE !== "local-only" || !origin || !secret) throw new Error("Local authentication is not configured.");
-  instance ??= createAuth({ database: getDatabase(), origin, secret });
+export async function getAuth() {
+  const config = authenticationConfig();
+  const database = getDatabase();
+  await database.ready();
+  if (!instance) {
+    const mail = config.mode === "production" ? emailOutboxConfig() : undefined;
+    instance = createAuth({ database, origin: config.origin, secret: config.secret,
+      deliver: mail ? (recipient, url, kind) => enqueueAuthEmail(database, mail, recipient, url, kind) : undefined });
+  }
   return instance;
 }

@@ -179,7 +179,7 @@ test("keyboard access, responsive forms, missing session and offline retry prese
   await page.getByLabel("Target amount").fill("500");
   await page.context().clearCookies();
   await page.getByRole("button", { name: "Save draft and preview" }).click();
-  await expect(page.getByRole("alert").filter({ hasText: "verified local test account" })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "Sign in with a verified account" })).toBeVisible();
   await page.getByLabel("Account email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();

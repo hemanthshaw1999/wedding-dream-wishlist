@@ -25,7 +25,8 @@ function command(program: string, args: string[], connectionString: string): Pro
   });
 }
 const tables = ["wishlists", "goals", "memberships", "audit_entries", "recipient_snapshots",
-  "contributions", "claim_events", "auth_users", "auth_sessions", "auth_accounts", "auth_verifications", "auth_local_outbox"] as const;
+  "contributions", "claim_events", "auth_users", "auth_sessions", "auth_accounts", "auth_verifications", "auth_local_outbox",
+  "auth_email_outbox", "auth_email_budgets"] as const;
 try {
   if ((await db.get("SELECT value FROM app_metadata WHERE key='environment'"))?.value !== "synthetic-demo-only") throw new Error("Demo backup refuses non-synthetic data.");
   mkdirSync(resolve("data", "backups"), { recursive: true });

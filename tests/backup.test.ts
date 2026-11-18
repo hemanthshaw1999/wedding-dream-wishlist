@@ -10,6 +10,7 @@ import { WishlistStore } from "../src/server/store";
 import { ClaimsStore } from "../src/server/claims-store";
 import { validateWishlist } from "../src/lib/wishlist";
 import { validateClaim } from "../src/lib/claims";
+import { enqueueAuthEmail } from "../src/server/email";
 
 it("restores nonempty authentication and confirmed ledger data from a consistent native snapshot", async () => {
   const fixture = await createTestDatabase({ environment: "synthetic-demo-only", restrictedRuntime: true });
@@ -31,6 +32,8 @@ it("restores nonempty authentication and confirmed ledger data from a consistent
       headers: { Origin: origin, "Content-Type": "application/json" },
       body: JSON.stringify({ email: "backup@example.test", password: "Fictional-backup-test-only!42", name: "Fictional" }) }));
     expect(signup.status).toBe(200);
+    await enqueueAuthEmail(db, { origin: "https://wishlist.example.test", from: "accounts@example.test", key: randomBytes(32) },
+      "backup@example.test", "https://wishlist.example.test/api/auth/verify-email?token=fictional-backup-token", "verification");
     const result = await promisify(execFile)(process.execPath, ["--experimental-strip-types", "scripts/backup.ts"], {
       env: { ...process.env, DEMO_MODE: "local-only", DATABASE_URL: fixture.runtimeUrl }, timeout: 50000
     });

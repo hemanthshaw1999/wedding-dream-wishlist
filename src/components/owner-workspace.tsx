@@ -11,7 +11,7 @@ import { authClient } from "./auth-client";
 
 type Summary = { id: string; displayNames: string; slug: string; state: WishlistState };
 
-export function OwnerWorkspace({ wishlists }: { wishlists: Summary[] | null }) {
+export function OwnerWorkspace({ wishlists, authDemo = true }: { wishlists: Summary[] | null; authDemo?: boolean }) {
   const router = useRouter();
   const [entered, setEntered] = useState(wishlists !== null);
   const [busy, setBusy] = useState(false);
@@ -62,9 +62,9 @@ export function OwnerWorkspace({ wishlists }: { wishlists: Summary[] | null }) {
   return (
     <>
       <header className="page-title"><p className="eyebrow">Build a meaningful next chapter</p><h1>Your local workspace</h1></header>
-      <section className="notice"><strong>{en.demo}</strong><p>{en.ownerWarning}</p><p>Separate accounts use self-hosted Better Auth, verification and recovery through a private local mailbox. Sessions expire after one hour.</p></section>
+      <section className="notice"><strong>{en.demo}</strong><p>{en.ownerWarning}</p><p>{authDemo ? "Separate accounts use self-hosted Better Auth, verification and recovery through a private local mailbox." : "Separate accounts use self-hosted Better Auth with verification and recovery messages queued for delivery."} Sessions expire after one hour.</p></section>
       {error && <div role="alert" className="error-box">{error}</div>}
-      {!entered && <AuthPanel onSignedIn={() => { setEntered(true); setError(""); router.refresh(); }} />}
+      {!entered && <AuthPanel demo={authDemo} onSignedIn={() => { setEntered(true); setError(""); router.refresh(); }} />}
       {entered && (
         <div className="workspace-grid">
           <section className="panel" aria-labelledby="create-title">

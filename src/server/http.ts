@@ -4,17 +4,18 @@ import { NextResponse } from "next/server";
 import { AppError } from "../lib/errors.ts";
 import { getDatabase } from "./database.ts";
 import { getAuth } from "./auth.ts";
+import { applicationConfig } from "./config.ts";
 
-export function localOrigin(): string {
-  const origin = process.env.APP_ORIGIN;
-  if (process.env.DEMO_MODE !== "local-only" || !origin || !/^http:\/\/127\.0\.0\.1:\d{4,5}$/.test(origin)) {
-    throw new AppError(503, "DEMO_DISABLED", "This application is available only in explicitly enabled local demo mode.");
+export function applicationOrigin(): string {
+  try {
+    return applicationConfig().origin;
+  } catch {
+    throw new AppError(503, "APPLICATION_DISABLED", "The application is not configured for this environment.");
   }
-  return origin;
 }
 
 export function assertMutation(request: Request) {
-  const origin = localOrigin();
+  const origin = applicationOrigin();
   if (request.headers.get("host") !== new URL(origin).host || request.headers.get("origin") !== origin) {
     throw new AppError(403, "ORIGIN_DENIED", "Request origin is not allowed.");
   }
@@ -44,10 +45,11 @@ export async function readJson(request: Request): Promise<unknown> {
 export const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
 
 export async function requireOwner(): Promise<string> {
-  localOrigin();
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  if (!session || !session.user.emailVerified) throw new AppError(401, "SESSION_REQUIRED", "Sign in with a verified local test account. Unsaved fields remain in this tab.");
-  await getDatabase().run("INSERT INTO users VALUES($1,'fictional-demo',$2) ON CONFLICT(id) DO NOTHING", [session.user.id, new Date().toISOString()]);
+  applicationOrigin();
+  const session = await (await getAuth()).api.getSession({ headers: await headers() });
+  if (!session || !session.user.emailVerified) throw new AppError(401, "SESSION_REQUIRED", "Sign in with a verified account. Unsaved fields remain in this tab.");
+  await getDatabase().run("INSERT INTO users VALUES($1,$2,$3) ON CONFLICT(id) DO NOTHING",
+    [session.user.id, applicationConfig().mode === "production" ? "account" : "fictional-demo", new Date().toISOString()]);
   return session.user.id;
 }
 
@@ -58,7 +60,7 @@ export async function enforceRateLimit(action: string, actor: string, max: numbe
   await db.run("DELETE FROM rate_limits WHERE expires_at<$1", [now]);
   const result = await db.get(`INSERT INTO rate_limits VALUES($1,1,$2) ON CONFLICT(bucket)
     DO UPDATE SET count=rate_limits.count+1 RETURNING count`, [bucket, now + periodMs]);
-  if (Number(result?.count) > max) throw new AppError(429, "RATE_LIMITED", "Too many demo actions. Wait a minute before retrying.");
+  if (Number(result?.count) > max) throw new AppError(429, "RATE_LIMITED", "Too many actions. Wait a minute before retrying.");
 }
 
 export function json(data: unknown, status = 200): NextResponse {
