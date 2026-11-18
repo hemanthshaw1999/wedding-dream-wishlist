@@ -1,0 +1,38 @@
+{
+  "name": "wedding-dream-wishlist-local-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=26.13.0 <27" },
+  "scripts": {
+    "dev": "node scripts/run-local.mjs dev",
+    "build": "next build",
+    "start": "node scripts/run-local.mjs start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "demo:seed": "node --experimental-strip-types scripts/seed.ts",
+    "demo:reset": "node --experimental-strip-types scripts/seed.ts --reset-synthetic-demo",
+    "demo:backup": "node --experimental-strip-types scripts/backup.ts",
+    "auth:mailbox": "node scripts/mailbox.mjs"
+  },
+  "dependencies": {
+    "better-auth": "1.7.21",
+    "next": "16.4.6",
+    "qrcode": "1.5.4",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0",
+    "@types/node": "26.6.6",
+    "@types/qrcode": "1.5.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "10.14.0",
+    "eslint-config-next": "16.4.6",
+    "typescript": "5.9.3",
+    "vitest": "5.1.0"
+  }
+}
