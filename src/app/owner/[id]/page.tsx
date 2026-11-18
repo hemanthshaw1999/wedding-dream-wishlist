@@ -16,8 +16,8 @@ export default async function Preview({ params }: { params: Promise<{ id: string
   let reports;
   try {
     const owner = await requireOwner();
-    wishlist = new WishlistStore(getDatabase()).getOwner((await params).id, owner);
-    reports = new ClaimsStore(getDatabase()).dashboard(wishlist.id, owner);
+    wishlist = await new WishlistStore(getDatabase()).getOwner((await params).id, owner);
+    reports = await new ClaimsStore(getDatabase()).dashboard(wishlist.id, owner);
   } catch (error) {
     if (error instanceof AppError && error.status === 404) notFound();
     if (error instanceof AppError && error.status === 401) {

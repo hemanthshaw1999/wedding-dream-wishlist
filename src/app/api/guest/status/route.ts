@@ -6,9 +6,9 @@ import { getDatabase } from "@/server/database";
 export async function POST(request: Request) {
   try {
     assertMutation(request);
-    enforceRateLimit("guest-status", "local-computer", 60);
+    await enforceRateLimit("guest-status", "local-computer", 60);
     const body = await readJson(request);
     if (!body || typeof body !== "object" || !("token" in body) || Object.keys(body).length !== 1) throw new AppError(404, "NOT_FOUND", "Private report not available.");
-    return json(new ClaimsStore(getDatabase()).status(body.token));
+    return json(await new ClaimsStore(getDatabase()).status(body.token));
   } catch (error) { return apiError(error); }
 }

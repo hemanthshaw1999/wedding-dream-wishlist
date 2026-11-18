@@ -11,7 +11,7 @@ export default async function GuestPage({ params }: { params: Promise<{ slug: st
   let wishlist;
   try {
     localOrigin();
-    wishlist = new WishlistStore(getDatabase()).getPublic((await params).slug);
+    wishlist = await new WishlistStore(getDatabase()).getPublic((await params).slug);
   } catch (error) {
     if (error instanceof AppError && error.status === 404) notFound();
     throw error;

@@ -5,6 +5,6 @@ import { getDatabase } from "@/server/database";
 export async function GET(_request: Request, context: { params: Promise<{ slug: string }> }) {
   try {
     localOrigin();
-    return json(new WishlistStore(getDatabase()).getPublic((await context.params).slug));
+    return json(await new WishlistStore(getDatabase()).getPublic((await context.params).slug));
   } catch (error) { return apiError(error); }
 }

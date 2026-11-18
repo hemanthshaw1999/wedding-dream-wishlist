@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= resolve("data", "browsers");
-process.env.E2E_DB_PATH ??= resolve("data", `e2e-${randomUUID()}.sqlite`);
+process.env.E2E_DB_NAME ??= `wishlist_e2e_${randomUUID().replaceAll("-", "")}`;
 
 export default defineConfig({
   testDir: "./tests/e2e",

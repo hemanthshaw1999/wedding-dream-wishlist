@@ -12,8 +12,8 @@ export async function POST(request: Request) {
     const body = await readJson(request);
     const endpoint = new URL(request.url).pathname;
     const email = body && typeof body === "object" && "email" in body && typeof body.email === "string" ? body.email.toLowerCase().trim() : "local";
-    enforceRateLimit("auth-global", "local-computer", 100);
-    enforceRateLimit(`auth:${endpoint}`, tokenHash(email), endpoint.endsWith("/sign-in/email") ? 8 : 5);
+    await enforceRateLimit("auth-global", "local-computer", 100);
+    await enforceRateLimit(`auth:${endpoint}`, tokenHash(email), endpoint.endsWith("/sign-in/email") ? 8 : 5);
     if (new URL(request.url).pathname.endsWith("/sign-up/email")) {
       if (!body || typeof body !== "object" || !("email" in body) ||
         typeof body.email !== "string" || !/^[a-z0-9._+-]{1,64}@example\.test$/i.test(body.email)) {

@@ -6,6 +6,6 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   try {
     const owner = await requireOwner();
     const params = new URL(request.url).searchParams;
-    return json(new ClaimsStore(getDatabase()).dashboard((await context.params).id, owner, params.get("status") || "all", Number(params.get("page") || "1")));
+    return json(await new ClaimsStore(getDatabase()).dashboard((await context.params).id, owner, params.get("status") || "all", Number(params.get("page") || "1")));
   } catch (error) { return apiError(error); }
 }

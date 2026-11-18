@@ -1,6 +1,8 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { DatabaseSync } from "node:sqlite";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { openDatabase } from "../../src/server/database";
 
 const origin = "http://127.0.0.1:4318";
 const password = "Fictional-test-only-password!42";
@@ -9,20 +11,25 @@ const fixture = () => ({
   slug: `test-${randomUUID()}`, visibility: "unlisted",
   goals: [{ title: "Our honeymoon", description: "A quiet adventure", target: "300000" }]
 });
-function verificationLink(email: string): string {
-  const path = process.env.E2E_DB_PATH;
-  if (!path) throw new Error("Missing isolated E2E database path.");
-  const db = new DatabaseSync(path, { readOnly: true });
+async function verificationLink(email: string): Promise<string> {
+  const name = process.env.E2E_DB_NAME;
+  if (!name || !/^wishlist_e2e_[a-f0-9]{32}$/.test(name)) throw new Error("Missing isolated E2E database name.");
+  const adminUrl = process.env.WISHLIST_TEST_ADMIN_URL ||
+    (JSON.parse(readFileSync(resolve("data", "local-postgres.json"), "utf8")) as { adminUrl: string }).adminUrl;
+  const url = new URL(adminUrl);
+  if (!["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)) throw new Error("E2E refuses a remote database.");
+  url.pathname = `/${name}`;
+  const db = openDatabase(url.toString());
   try {
-    const entry = db.prepare("SELECT url FROM auth_local_outbox WHERE recipient=? AND kind='verification' ORDER BY created_at DESC LIMIT 1").get(email);
+    const entry = await db.get("SELECT url FROM auth_local_outbox WHERE recipient=$1 AND kind='verification' ORDER BY created_at DESC LIMIT 1", [email]);
     if (!entry) throw new Error("No synthetic verification message was queued.");
     return String(entry.url);
-  } finally { db.close(); }
+  } finally { await db.close(); }
 }
 async function account(request: APIRequestContext) {
   const email = `${randomUUID()}@example.test`;
   expect((await request.post("/api/auth/sign-up/email", { data: { name: "Fictional owner", email, password, callbackURL: "/owner" }, headers: { Origin: origin } })).status()).toBe(200);
-  await request.get(verificationLink(email));
+  await request.get(await verificationLink(email));
   expect((await request.post("/api/auth/sign-in/email", { data: { email, password }, headers: { Origin: origin } })).status()).toBe(200);
   return email;
 }
@@ -36,7 +43,7 @@ test("verified account, persisted wishlist, anonymous report and audited manual 
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Create account", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "verification message" })).toBeVisible();
-  await page.goto(verificationLink(email));
+  await page.goto(await verificationLink(email));
   await page.getByLabel("Account email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();

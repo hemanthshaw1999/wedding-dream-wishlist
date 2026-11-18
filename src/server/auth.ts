@@ -1,20 +1,20 @@
 import { randomUUID } from "node:crypto";
-import type { DatabaseSync } from "node:sqlite";
 import { betterAuth } from "better-auth";
-import { getDatabase } from "./database.ts";
+import { getDatabase, type Database } from "./database.ts";
 
-type AuthOptions = { database: DatabaseSync; origin: string; secret: string };
+type AuthOptions = { database: Database; origin: string; secret: string };
 
 export function createAuth({ database, origin, secret }: AuthOptions) {
   if (secret.length < 48) throw new Error("An independently generated auth secret is required.");
-  function enqueue(recipient: string, url: string, kind: "verification" | "recovery") {
+  async function enqueue(recipient: string, url: string, kind: "verification" | "recovery") {
     if (!recipient.endsWith("@example.test")) throw new Error("Local mailbox only accepts fictional @example.test addresses.");
-    database.prepare("DELETE FROM auth_local_outbox WHERE created_at<?").run(new Date(Date.now() - 3_600_000).toISOString());
-    database.prepare("INSERT INTO auth_local_outbox VALUES(?,?,?,?,?)").run(randomUUID(), recipient, kind, url, new Date().toISOString());
+    await database.run("DELETE FROM auth_local_outbox WHERE created_at<$1", [new Date(Date.now() - 3_600_000).toISOString()]);
+    await database.run("INSERT INTO auth_local_outbox VALUES($1,$2,$3,$4,$5)", [randomUUID(), recipient, kind, url, new Date().toISOString()]);
   }
   return betterAuth({
     appName: "Wedding Dream Wishlist",
-    database,
+    telemetry: { enabled: false },
+    database: database.pool,
     secret,
     baseURL: origin,
     trustedOrigins: [origin],

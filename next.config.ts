@@ -4,7 +4,7 @@ const config: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   logging: { incomingRequests: false },
-  serverExternalPackages: ["node:sqlite"],
+  serverExternalPackages: ["pg"],
   async headers() {
     return [{
       source: "/:path*",

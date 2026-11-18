@@ -9,12 +9,12 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const owner = await requireOwner();
     const id = (await context.params).id;
     const db = getDatabase();
-    new WishlistStore(db).getOwner(id, owner);
-    if (Number(db.prepare("SELECT COUNT(*) AS count FROM contributions WHERE wishlist_id=?").get(id)?.count) > 5000) {
+    await new WishlistStore(db).getOwner(id, owner);
+    const rows = await db.all(`SELECT id,guest_name,guest_message,reference,amount_paise,status,created_at
+      FROM contributions WHERE wishlist_id=$1 ORDER BY created_at,id LIMIT 5001`, [id]);
+    if (rows.length > 5000) {
       throw new AppError(409, "EXPORT_LIMIT", "Export exceeds the demo's 5,000-row limit. No partial export was produced.");
     }
-    const rows = db.prepare(`SELECT id,guest_name,guest_message,reference,amount_paise,status,created_at
-      FROM contributions WHERE wishlist_id=? ORDER BY created_at,id`).all(id);
     const lines = [
       ["Report ID", "Private guest name", "Private message", "Reference (not proof)", "Amount INR", "Status (demo)", "Created UTC"],
       ...rows.map((row) => [String(row.id), String(row.guest_name), String(row.guest_message), String(row.reference),

@@ -2,7 +2,7 @@
 
 ## Authority
 
-No authorization exists to publish a repository, host publicly, create accounts, accept terms, purchase domains, enable billing, use paid credits, send communications, onboard recipients or move money. No such action was performed. Public package/docs downloads and local code/testing were used. No workplace source or data was read into this project.
+The user authorized private-first publication and completed personal GitHub browser authorization. Checkpoint `0bc620b` was pushed to their private personal repository. No hosting-provider account, cloud database, billing, paid credits, domain purchase, external messaging, recipient onboarding or real transfer was enabled. No workplace source/data/account was used.
 
 ## Open decisions
 
@@ -10,8 +10,8 @@ No authorization exists to publish a repository, host publicly, create accounts,
 |---|---|---|---|
 | D01 | A: couple-controlled UPI vs B: provider checkout | User requested direct payment, guest submission and no gateway dependency | A is the chosen direction; synthetic report/confirmation implementation only, real money still disabled |
 | D02 | Demo, real pilot or launch-ready target | Publicly hosted responsive consumer application, developed through local verified slices | User clarified hosted/production target; external deployment still requires separate approval |
-| D03 | Stack | Next.js/TypeScript with separately operated PostgreSQL on durable storage for hosted target; Spring decision remains open | User requested free/open-source durable database; current verified slice still SQLite. Java absent; Docker daemon unavailable. No untested PostgreSQL migration claimed |
-| D04 | Hard cap vs overfunding | Allow overfunding with truthful totals; simpler than reservations/late success | Undecided; no contributions yet |
+| D03 | Stack | Next.js/TypeScript route handlers and separately operated PostgreSQL | PostgreSQL 18.7 / pg 8.23.1 now implemented and real-engine tested locally. Java/Spring are not used; Docker daemon remains unavailable. Official portable PostgreSQL avoids a shared service |
+| D04 | Hard cap vs overfunding | Allow overfunding with truthful totals; simpler than reservations/late success | Live policy undecided; demo overfunding is explicitly synthetic |
 | D05 | Maintained authentication provider/library | Self-hosted Better Auth, MIT, stable 1.7.21 | Implemented/tested locally with private terminal-only mail adapter; no hosted auth dependency; real delivery remains blocked |
 | D06 | Fees, tax treatment, gross/net progress | Explicit disclosure and provider-specific review | No fees or real financial semantics invented |
 | D07 | Provider and settlement model | Written wedding-gifting/multiple-couple eligibility required | No provider selected |
@@ -20,7 +20,7 @@ Essential decisions were grouped into one form; the user was unavailable to answ
 
 ## Temporary implemented choices
 
-The user explicitly clarified that the final app will be hosted and requested a secure, free/open-source database with crash resilience. **The local SQLite slice is not the final hosted database architecture.** PostgreSQL is the planned hosted datastore, operated independently of application processes. Application restarts, database crashes and complete infrastructure loss require different controls. Durable volumes, WAL/crash recovery, off-instance backups, tested restoration and possibly paid/redundant infrastructure must be planned separately. Open-source licensing does not make hosting or high availability free.
+The user clarified that the app will be hosted and requested a free/open-source crash-resilient database. **PostgreSQL is now the actual backend**, operated independently of Next processes with generated local credentials and a restricted app role. Old SQLite data is preserved, not silently converted. Application restarts, database crashes and complete host/disk loss need different controls. Native consistent-snapshot backup/isolated restore is tested; off-instance recovery and redundant hosting remain separate. Open-source licensing does not make hosting/high availability free. Historical slice-1 bullets below are superseded by `current-increment.md` and the README.
 
 - Single fictional owner, entered explicitly through a local-only demo endpoint; no signup/recovery impersonating production auth.
 - Synthetic data only. Separate SQLite files for demo/E2E. No cloud DB or external API calls at app runtime.

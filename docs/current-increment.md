@@ -1,4 +1,4 @@
-# Current increment: self-hosted accounts and manual gift reports
+# Current increment: PostgreSQL durability, accounts and manual reports
 
 This supersedes checkpoint-1 statements that auth/reports were absent or that a shared fictional account could be entered. The release target remains a hosted responsive wedding app, **not yet production ready**.
 
@@ -8,22 +8,36 @@ The user selected a no-gateway direct-to-couple direction: guests declare a paym
 
 The runnable local workflow now implements separate accounts and **synthetic** reporting/confirmation, without a hosted identity, payment, mail, AI or analytics API. It does not generate a real payable UPI QR or process money. Demonstration QR payloads start `DEMO-NOT-PAYABLE|`; wishlist-link QR codes still contain only the local guest URL.
 
+## PostgreSQL implementation - 19 November 2026
+
+The backend now actually uses PostgreSQL **18.7** through **pg/@types/pg 8.23.1**, not SQLite or an emulation. Node **26.13.0** reports LTS **Lithium**. Official EDB Windows binaries run independently of Next on `127.0.0.1:55432`; no shared Windows service, Docker daemon or cloud account was used. Archive SHA256 recorded at download: `EAD0BBC27FB678FA24DCF86B738981323042ABD073C744103BF7F3AED23F9A33` (local fingerprint, not an independently published authenticity attestation).
+
+`data\local-postgres.json` contains generated local credentials; `data\postgres-cluster` holds durable database files. Both are ignored. Schema-owner/migration and app roles are separate. Startup rejects privileged app roles. Tested runtime restrictions deny table creation, trigger disabling, migration-history updates and ledger deletion. Administrators/filesystem owners remain trusted; these are not tamper-proof controls against them.
+
+Current SQL is in `migrations\postgres`: atomic advisory-locked migration application, generated maintained-library auth schema, and an additive fix allowing absent optional timestamps. Migrations refuse unrelated or mismatched-environment databases. Old SQLite files/migrations are historical and remain untouched; no production-data conversion is claimed.
+
+Money uses exact integer-paise NUMERIC values with integral/bounds constraints (no PostgreSQL rounding of fractional paise), converted to JS only after safe-integer checks. Domain timestamps are validated, consistently UTC ISO text; auth uses TIMESTAMPTZ. Queries are parameterized. Remote connection configuration enforces certificate verification even when a URL says `sslmode=require`; disabling TLS verification is rejected.
+
+Transactions use PostgreSQL row/advisory locks, not a process-local mutex. Tests exercise eight simultaneous same-key reports, racing confirmations, duplicate references, slug collisions, stale versions and atomic rate buckets. Deferred constraints reject cache/ledger divergence at commit.
+
+Native `pg_dump` uses an exported repeatable-read snapshot. The automated drill restores into a freshly generated local test database and checks counts, marker and ledger/state reconciliation before dropping only that isolated database. A separate test fills auth/accounts/mailbox plus a confirmed gift/event history before exercising this restore. Backups stay private/local; encrypted off-instance/PITR recovery is still a launch requirement. Reset switches to a new marked synthetic database and preserves the previous one.
+
 ## Authentication
 
 Better Auth **1.7.21**, MIT, stable version selected from registry versions because `latest` was a beta. Official docs verified:
 
 - https://better-auth.com/docs/installation
-- https://better-auth.com/docs/adapters/sqlite (explicit Node built-in SQLite support)
+- https://better-auth.com/docs/adapters/postgresql (supported direct Pool adapter)
 - https://better-auth.com/docs/authentication/email-password
 - https://better-auth.com/docs/concepts/database (programmatic migration API)
 
-The executed `getMigrations(auth.options).compileMigrations()` output supplied the auth core SQL in migration 002. Real library handlers manage password hashing, verification, sign-in/sign-out, expiry, recovery and session revocation. No hand-rolled password protocol or default administrator credentials.
+The executed `getMigrations(auth.options).compileMigrations()` supplied `migrations/postgres/002_auth.sql` from a real PostgreSQL connection. Real library handlers manage password hashing, verification, sign-in/sign-out, expiry, recovery and session revocation. Telemetry is explicitly disabled. No hand-rolled password protocol or default administrator credentials.
 
 Local rules: fictional `@example.test` registrations only; 12-128 character passwords; verified email required; generic sign-in/recovery UI and enumeration-resistant signup; sessions one hour with library cookie caching disabled. Cookies are HttpOnly/SameSite=Strict, **not Secure on local HTTP**. Signing out/recovery revokes persisted sessions. Per-email and global database-backed application rate buckets complement library limits.
 
 Verification/recovery use a private `auth_local_outbox` table. **No email is sent.** `npm run auth:mailbox` is a terminal-only credential viewer, never an HTTP endpoint. Links expire under the auth library; new enqueue operations purge outbox rows older than one hour. The launcher generates a persistent secret in ignored `data\local-auth-secret.txt`, never prints it, and passes it server-side. On Windows, POSIX file modes do not substitute for reviewed account/ACL isolation. This local delivery/secrets setup must not be publicly exposed.
 
-`/api/demo-session` POST is retired (410), and old shared-session rows are cleared by migration 002. Old seeded wishlists are not silently transferred to a newly registered owner. Application `users` remain marked synthetic; auth identities are separately stored and mapped by their immutable ID, not display name.
+`/api/demo-session` POST is retired (410). Old seeded wishlists are not silently transferred to newly registered owners. Application identities in the demo remain marked synthetic; auth identities are separately stored and mapped by immutable ID, not display name. Legacy SQLite accounts have not been silently imported into the new PostgreSQL demo.
 
 ## Actual migrated ER additions
 
@@ -39,7 +53,7 @@ erDiagram
   users ||--o{ claim_events : reviews
 ```
 
-Migration 002 executes atomically through the existing migrator. It adds library auth tables/indexes, local mailbox, immutable recipient snapshots, immutable contribution terms and append-only claim-event triggers. Composite foreign keys enforce goal/recipient/wishlist consistency. All money stays integer paise and INR.
+PostgreSQL migrations execute atomically. They include library auth tables/indexes, a local mailbox, immutable recipient snapshots/contribution terms and append-only claim-event triggers. Composite foreign keys enforce goal/recipient/wishlist consistency. All money stays integer paise and INR.
 
 Recipient snapshots in this demo contain only a label copied from the fictional couple name, not a UPI address or payment instrument. Real setup, recipient-name confirmation, reauthentication and versioned recipient changes remain unimplemented.
 
@@ -85,7 +99,7 @@ Private URLs use `/gift-status#<random-key>`: fragment not sent in the server UR
 
 | IDs | Scenario | Expected | Level | Actual latest completed run |
 |---|---|---|---|---|
-| AUTH01 | Registration/duplicate signup/unverified login | Generic signup shape, no sign-in before verification; hash not plaintext | Real library + SQLite integration | PASS |
+| AUTH01 | Registration/duplicate signup/unverified login | Generic signup shape, no sign-in before verification; hash not plaintext | Real library + PostgreSQL integration | PASS |
 | AUTH02 | Verified sign-in/sign-out/expiry/forged cookie | Persisted-session checks; immediate revoke; expired/invalid denied | Integration | PASS |
 | AUTH03 | Recovery/reused token/old session | One successful reset; replay and old session denied | Integration | PASS |
 | AUTH04 | Owner A vs B reads/edits/reports | 404 without disclosure | Real separate-account HTTP E2E | PASS |
@@ -100,14 +114,14 @@ Private URLs use `/gift-status#<random-key>`: fragment not sent in the server UR
 | UI02 | Mobile/desktop, 320/390/768/1280 owner forms, session loss/offline | No checked horizontal overflow; form preserved; report->review->confirm->status works | Browser E2E | PASS |
 | ACK01 | Confirmation without explicit acknowledgement | 422, no state change | Browser HTTP E2E | PASS |
 
-Final completed commands: lint passed, strict typecheck passed, **79 unit/integration tests in 5 files passed**, optimized build passed, **6/6 desktop/mobile E2E passed in 31.3 seconds**. Final tests include explicit server-side confirmation acknowledgement, concurrent report retries, separate-account report/export/review denial and disabled legacy entry. The existing seed survived migration 002; expanded backup/isolated restore checks including auth, recipient, contribution and event tables passed. Mobile guest and owner screenshots inspected. No physical-device UPI test or full WCAG/independent completed-code security assessment.
+PostgreSQL checkpoint validation: lint/typecheck passed; **82 unit/integration tests in 6 files passed** in the final combined run; optimized build and **6/6 desktop/mobile E2E passed against a restricted PostgreSQL role** after the private-notice/external-driver changes. Native seed and main-database snapshot/restore also passed. A controlled termination/restart of this project's PostgreSQL process preserved the baseline row counts and returned a writable primary. This tests process restart, not high availability, power-loss guarantees or disk-loss recovery. No physical-device UPI test, full WCAG assessment or independent completed-code security assessment is claimed.
 
 Dependency advisory audit for the new dependency set: **BLOCKED by registry HTTP 429**. The old zero-advisory result is historical and not reused as a claim for Better Auth. No registry policy/configuration was bypassed or changed.
 
 ## Remaining release blockers / uncovered risks
 
-PostgreSQL and separate hosted failure domains remain unimplemented. Current local SQLite uses a release-candidate Node driver and is not the hosted production architecture. New accounts/reporting do not authorize deployment.
+Local PostgreSQL is implemented; hosted provisioning, separate hosted failure domains and off-instance disaster recovery remain unimplemented. There is no application/runtime SQLite dependency. Working local accounts/reporting do not authorize public deployment.
 
 Live UPI-ID/QR setup, safe QR-image decoding/re-encoding if selected, recipient reauthentication/change history, stale instructions, real external verification/recovery delivery, legal/privacy review, actual retention/deletion, moderation/support, stronger CSP/TLS/Secure cookies, dependency audit clearance, encrypted off-instance backups/restore, load/browser/accessibility/security review and explicit hosting approval remain. No money or screenshots are moved/uploaded, no external messages sent.
 
-Self-hosted open-source auth is free software, not free hosting or a guarantee of security. Local mailbox/SQLite files are readable to trusted filesystem users; library session/verification data follow the library's format (do not assume all tokens are hashed). Keep data, backups and the auth secret out of source control.
+Self-hosted open-source auth is free software, not free hosting or a security guarantee. Local credential files, cluster files and backups are accessible to trusted filesystem users; library session/verification data follow the library's format (do not assume all tokens are hashed). Keep data, backups and auth secrets out of source control.

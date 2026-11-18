@@ -2,15 +2,15 @@
 
 **Demo - no real money. Use synthetic data only. This is not a production-ready or publicly deployed product.**
 
-**Current increment:** separate accounts using self-hosted **Better Auth 1.7.21 (MIT)**, verification/recovery through a private local mailbox, persisted wishlists, anonymous synthetic gift reports, private guest status, owner-only manual confirmation/reversal and private CSV export. No hosted identity or payment service is used. **See `docs/current-increment.md` for the current API, test matrix and limitations; checkpoint-1 documents are historical.**
+**Current increment:** real **PostgreSQL 18.7** persistence independent from the web process, restricted runtime role, concurrent/idempotent gift reports, audited confirmation/reversal and tested native backup/restore. Self-hosted **Better Auth 1.7.21 (MIT)** handles accounts; delivery is still a private local mailbox. No hosted identity or payment service is used. **See `docs/current-increment.md` for current results and launch blockers.**
 
 ## What actually runs
 
 This project was created using GitHub Copilot CLI on Windows, not the Microsoft 365 Copilot application. No subscription entitlement was inspected or inferred. Java was not on PATH. Docker's executable exists but the checked daemon is unavailable. No cloud account, workplace repository, remote database, paid infrastructure or deployment was used.
 
-The temporary implementation uses Next.js route handlers and SQLite rather than the proposed Spring Boot/PostgreSQL backend. The backend framework decision remains open; the hosted production target is confirmed below. Node's built-in SQLite driver is release-candidate status, so use of it here is a **demo-only deviation**, not a production support guarantee. See `docs/decisions.md`.
+The implementation now uses Next.js/TypeScript route handlers and PostgreSQL through `pg` 8.23.1. Spring Boot is not used. SQLite is no longer imported by the application, scripts or tests; old synthetic SQLite files are preserved, not silently migrated or deleted. PostgreSQL was downloaded from the official EDB binaries page and runs as an isolated, user-controlled loopback process, not a shared Windows service. See `docs/decisions.md`.
 
-**Confirmed direction:** publicly hosted responsive application; PostgreSQL as the hosted datastore; direct-to-couple UPI without a gateway and guest-submitted reports, never automatic bank verification. Current runnable code has **not** been migrated to PostgreSQL or enabled real UPI. No PostgreSQL server tools are available; the checked portable npm package has no stable versions. Hosting costs/audience, live overfunding policy, secure recipient setup, real mail delivery and deployment permission remain separate gates.
+**Confirmed direction:** publicly hosted responsive application; PostgreSQL operated separately from web processes; direct-to-couple UPI without a gateway and guest-submitted reports, never automatic bank verification. PostgreSQL is implemented and tested locally; no hosted database or real UPI is enabled. Free-tier limits/audience, live overfunding policy, secure recipient setup, real mail delivery and deployment permission remain separate gates.
 
 The server stores an actual on-disk database. Anonymous browsers can access intentionally published public/unlisted pages **on the same computer**. A loopback link is not a public website. A phone cannot reach its own computer's `127.0.0.1`; do not advertise the local QR as phone-ready.
 
@@ -21,8 +21,8 @@ These are researched candidates, **not configured accounts, integrations or depl
 | Component | Candidate and verified limits | Current status / important limitation |
 |---|---|---|
 | Login | Self-hosted Better Auth, MIT license | Implemented locally. No hosted identity vendor required; production verification/recovery delivery remains unfinished. |
-| PostgreSQL | [Neon Free](https://neon.com/pricing): no card required, 1 GB/project, 100 CU-hours/project, 5 GB public egress/project; compute scales to zero after 5 minutes | Candidate only. App still uses SQLite. Free recovery history is 6 hours with a 1 GB limit, and one manual snapshot; independent backup/restore is still required. |
-| Web hosting | [Netlify Free](https://www.netlify.com/pricing/): 300 credits/month; production deploys cost 15 credits, compute 10 credits/GB-hour, bandwidth 20 credits/GB, web requests 2 credits/10k | Candidate only. [Next.js support uses OpenNext](https://docs.netlify.com/build/frameworks/framework-setup-guides/nextjs/overview/). Our exact app/runtime, private-response caching, quotas and no-spend behavior must be verified before hosting; do not deploy the local SQLite/mailbox configuration. Use a provider subdomain initially, not a purchased domain. |
+| PostgreSQL | [Neon Free](https://neon.com/pricing): no card required, 1 GB/project, 100 CU-hours/project, 5 GB public egress/project; compute scales to zero after 5 minutes | Hosting candidate only; app already uses local PostgreSQL. Free recovery history is 6 hours with a 1 GB limit and one manual snapshot. Off-instance recovery is still required. |
+| Web hosting | [Netlify Free](https://www.netlify.com/pricing/): 300 credits/month; production deploys cost 15 credits, compute 10 credits/GB-hour, bandwidth 20 credits/GB, web requests 2 credits/10k | Candidate only. [Next.js support uses OpenNext](https://docs.netlify.com/build/frameworks/framework-setup-guides/nextjs/overview/). Our exact runtime, private-response caching, quotas and no-spend behavior must be verified before hosting; do not expose the local mailbox configuration. Use a provider subdomain initially, not a purchased domain. |
 | Transactional email | [Resend Free](https://resend.com/pricing): 3,000 emails/month, 100/day | Candidate only. [A domain you own/control must be verified](https://resend.com/docs/dashboard/domains/introduction). No free domain or unrestricted production email delivery is assumed. The local mailbox sends no actual email. |
 | Payments | Direct-to-couple UPI, no platform gateway or custody; guest report plus manual couple bank-record check | Direction selected, live recipient setup not implemented. QR generation does not establish receipt. Do not promise bank/provider verification or universal zero bank/app fees. |
 
@@ -30,11 +30,11 @@ These are researched candidates, **not configured accounts, integrations or depl
 
 Managed hosting, databases and email introduce third-party data processors even when the application/authentication code is open source. Before enrollment, review regions, subprocessors, retention and terms with the owner. Email providers handle recipient addresses and authentication-message contents. Keep tracking disabled and don't include gift details in auth mail. [Neon documents TLS and encryption at rest](https://neon.com/docs/security/security-overview), but these do not prevent authorized provider access or application authorization bugs; free IP allowlisting/private networking is not assumed.
 
-No external accounts, terms acceptance, real messages, paid plans, auto-recharge or public deployment are authorized by this evaluation. Stop at free limits rather than upgrading. The first publication target is a **private personal GitHub repository**, after user-controlled GitHub authorization. Incremental production work follows that checkpoint; no workplace account or data is to be used.
+No cloud-service enrollment, terms acceptance, real messages, paid plans, auto-recharge or public deployment are authorized by this evaluation. Stop at free limits rather than upgrading. The owner separately authorized and completed personal GitHub login; the initial checkpoint was pushed to a **private personal repository**. No workplace account or data is used.
 
 ## Prerequisites and exact versions
 
-Verified runtime: Node **26.13.0**, npm **11.20.0**, SQLite **3.54.0**. The project requires Node 26.13.x or later in the 26.x family for this exact demo. Upgrade to a reviewed supported runtime/database combination before a pilot; an LTS migration has not been tested.
+Verified runtime: Node **26.13.0 LTS (Lithium)**, npm **11.20.0**, PostgreSQL **18.7**. Node's actual `process.release.lts` reports `Lithium`; no release-candidate SQLite driver remains in the runtime path. The project requires Node 26.13.x or later in the 26.x family.
 
 Pinned direct dependencies:
 
@@ -45,6 +45,7 @@ Pinned direct dependencies:
 | TypeScript | 5.9.3 |
 | QRCode | 1.5.4 |
 | Better Auth (self-hosted, MIT) | 1.7.21 |
+| pg / @types/pg | 8.23.1 |
 | Vitest | 5.1.0 |
 | Playwright Test | 1.65.0 |
 | ESLint / eslint-config-next | 10.14.0 / 16.4.6 |
@@ -61,6 +62,13 @@ Publication preparation removed workplace package-feed URLs from the lockfile. P
 ```powershell
 Set-Location 'C:\Users\hgadarla\projects\wedding-dream-wishlist'
 npm ci --ignore-scripts --no-fund --no-audit
+npm run db:local
+```
+
+Keep PostgreSQL running in that terminal. It needs a supported PostgreSQL installation: set `PG_BIN` to its bin directory, or use the verified portable 18.7 installation on this computer. No machine-wide service/admin privilege is required. In a second project terminal:
+
+```powershell
+npm run db:migrate
 npm run demo:seed
 npm run dev
 ```
@@ -75,7 +83,7 @@ npm run auth:mailbox
 
 Open your verification link privately on this computer, then sign in. The mailbox is terminal-only, not an anonymous HTTP endpoint; no actual email is sent. Recovery uses the same local-only delivery adapter. **Never paste passwords or these links into chat.** Create your own wishlist to manage its reports; the old seeded example is not silently assigned to new accounts. Old shared demo sessions are invalidated; `/api/demo-session` returns 410.
 
-No `.env` file is needed. The launcher generates a high-entropy secret in ignored `data\local-auth-secret.txt` and passes it only to the server. Keep that file private and preserve it with an appropriate separate secrets-backup process if restoring accounts. The launcher binds to `127.0.0.1`, fixes the expected origin and disables Next telemetry for that process. This does not control other applications' telemetry. Local filesystem users remain trusted; the mailbox/secret arrangement is not production identity infrastructure.
+No `.env` file is needed locally. Database credentials are generated in ignored `data\local-postgres.json`; a persistent cluster lives in `data\postgres-cluster`. Keep both private. Schema migrations use a separate owner role; the running app cannot create/alter tables, overwrite migration history or delete ledger/audit rows. App startup rejects administrator roles. The launcher generates a high-entropy auth secret in ignored `data\local-auth-secret.txt`, binds to `127.0.0.1`, fixes the expected origin and disables Next telemetry. Better Auth telemetry is explicitly disabled. This does not control other software's telemetry. Local filesystem users remain trusted; the mailbox/secrets setup is not production identity infrastructure.
 
 For the optimized local build:
 
@@ -113,11 +121,11 @@ npm run demo:reset
 npm run demo:backup
 ```
 
-Reset is limited to the exact default `data\synthetic-demo.sqlite` and its WAL/SHM companions. It checks the synthetic database marker, deletes only those named files, then re-seeds. It refuses to reset a custom database path. This operation is **not** a production financial-history deletion feature.
+Reset refuses external database configuration and requires the app to be stopped. It creates a new, marked synthetic PostgreSQL database and updates local configuration; the previous database is **preserved**, not deleted. It is not a production financial-history deletion feature or account-deletion policy. Old SQLite files remain untouched.
 
-Backup uses SQLite's backup API, copies the snapshot to an isolated restore-drill file and checks integrity, foreign keys, the synthetic marker and row counts including auth, recipient, contribution and claim-event tables. Backups contain private synthetic account/mailbox data. They remain in `data\backups`; the restore-drill copy is deleted. This is not encrypted off-site disaster recovery. Never commit data, backups or the auth secret.
+Backup uses native `pg_dump` custom format with an exported repeatable-read snapshot. It restores into a fresh isolated database and checks row counts, environment marker and ledger/state reconciliation. This includes a tested nonempty auth/confirmed-contribution fixture, not only an empty schema. Credentials go through child-process environment, never command-line URLs or logs. Private backup data stays in ignored `data\backups`; the isolated restore database is dropped after validation. It is not encrypted off-site disaster recovery. Never commit data, backups or auth secrets.
 
-To restore the synthetic demo: stop the server, keep a separate copy of the current database, copy a selected verified backup to `data\synthetic-demo.sqlite` and remove only the stopped database's named stale `-wal`/`-shm` files if present. Run the backup/drill again and check the seeded guest page. Never replace a live database. No automated production rollback or point-in-time recovery is implemented.
+For recovery, restore a verified `.dump` to a new empty database using matching supported `pg_restore`, validate the marker/counts/ledger, grant the restricted runtime role, and only then switch server-side configuration. Preserve the old database and independent auth secret. Do not copy SQLite files into PostgreSQL or overwrite a live database. The automated drill exercises restoration, but production cutover and off-instance/PITR recovery remain unimplemented.
 
 ## Source map
 
@@ -126,10 +134,13 @@ package.json / package-lock.json        pinned dependencies and executable comma
 next.config.ts / src/proxy.ts           browser headers, loopback and demo gates
 migrations/001_demo.sql                 actual executed schema, checks and audit triggers
 migrations/002_auth_and_claims.sql      generated auth core schema, recipient/report/event tables
+migrations/postgres/                  current PostgreSQL schema/auth/fix migrations
+scripts/local-postgres.mjs             separate loopback database process, generated credentials
+scripts/migrate.ts                     explicit migration owner and restricted runtime grants
 scripts/run-local.mjs                   loopback-only process launcher
 scripts/seed.ts / backup.ts             fictional seed/reset and restore drill
 src/lib/                               money, validation, types, strings, errors
-src/server/                            SQLite connection, ownership store, sessions, HTTP guards
+src/server/                            PostgreSQL pool/transactions, ownership, auth, HTTP guards
 src/app/api/auth/[...all]/              maintained auth behind local origin/body/rate guards
 src/app/api/demo-session/               retired shared entry (410)
 src/app/api/owner/wishlists/             scoped list/create/read/state transitions
@@ -140,7 +151,7 @@ src/app/gift-status/                    private fragment-token status entry
 src/app/api/guest/status/               scoped token lookup (POST, no token in server URL)
 src/app/api/owner/wishlists/.../reports owner review and CSV export
 src/components/                        forms, sharing controls and responsive goal view
-tests/                                 unit, SQLite integration and real-browser tests
+tests/                                 unit, real PostgreSQL integration and browser tests
 docs/                                  decisions, schema, API, threat model, test matrix, operations
 ```
 
@@ -154,14 +165,16 @@ docs/                                  decisions, schema, API, threat model, tes
 - Public responses are explicitly projected. No management token appears in guest links/QR. Private/draft/archived wishlists return unavailable. Paused/closed pages stay readable by design.
 - State changes use transactions and version checks. Slugs are unique and immutable in this slice. No financial or wishlist hard-delete endpoint.
 - Wedding dates are date-only; expiry is the exclusive next midnight IST stored as UTC. English UI, INR grouping and Unicode input are supported. Localization extraction is incomplete.
-- SQLite queries are parameterized. Audit rows are append-only under ordinary SQL operations, **not tamper-proof against filesystem/database administrators**.
-- CSP currently permits inline scripts/styles for Next rendering. Production mail delivery/identity lifecycle review, nonce-based CSP, Secure cookies/TLS, PostgreSQL, comprehensive accessibility verification and independent penetration testing remain launch blockers.
+- PostgreSQL queries are parameterized. Exact integer-paise NUMERIC constraints reject fractional stored paise without rounding; the driver returns exact strings converted only after safe-integer checks. UTC ISO timestamp domains reject malformed dates; auth uses TIMESTAMPTZ.
+- Database transactions use per-key advisory locks and row locks for real concurrent retries/reviews/state changes. Deferred ledger constraints reject status/totals divergence at commit. Runtime grants protect history even if an application query is mistaken; administrators can still bypass database controls.
+- Remote PostgreSQL connections always verify TLS certificates; URL options cannot disable this. App startup and migration roles are separate. No runtime fallback to SQLite or an in-memory database exists.
+- CSP currently permits inline scripts/styles for Next rendering. Production mail delivery/identity lifecycle review, nonce-based CSP, Secure cookies/TLS, comprehensive accessibility verification and independent penetration testing remain launch blockers.
 
 ## Remaining increments - not implemented
 
-2. PostgreSQL migration with a supported runnable environment, separate database lifecycle and restore/restart tests.
+2. Hosted PostgreSQL provisioning, encrypted off-instance backups and deployment rehearsal.
 3. Live recipient UPI-ID/QR setup and secure changes, real verification/recovery delivery, account export/deletion and moderation/support.
 4. Direct-UPI launch gating and chosen live overfunding policy. Provider integration remains disabled and is unnecessary for manual reporting.
 5. Hardening, operational rehearsal, independent security/QA review and deployment preparation. Actual deployment requires explicit audience/cost approval.
 
-This checkpoint completes local self-hosted auth and the synthetic manual-reporting increment. It does not claim that all requested production features are built.
+This checkpoint adds actual PostgreSQL durability and real-engine concurrency/restore validation. It does not claim that all requested production features are built.

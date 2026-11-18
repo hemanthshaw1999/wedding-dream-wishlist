@@ -47,17 +47,17 @@ export async function requireOwner(): Promise<string> {
   localOrigin();
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session || !session.user.emailVerified) throw new AppError(401, "SESSION_REQUIRED", "Sign in with a verified local test account. Unsaved fields remain in this tab.");
-  getDatabase().prepare("INSERT OR IGNORE INTO users VALUES(?,'fictional-demo',?)").run(session.user.id, new Date().toISOString());
+  await getDatabase().run("INSERT INTO users VALUES($1,'fictional-demo',$2) ON CONFLICT(id) DO NOTHING", [session.user.id, new Date().toISOString()]);
   return session.user.id;
 }
 
-export function enforceRateLimit(action: string, actor: string, max: number, periodMs = 60_000): void {
+export async function enforceRateLimit(action: string, actor: string, max: number, periodMs = 60_000): Promise<void> {
   const db = getDatabase();
   const now = Date.now();
   const bucket = tokenHash(`${action}:${actor}:${Math.floor(now / periodMs)}`);
-  db.prepare("DELETE FROM rate_limits WHERE expires_at<?").run(now);
-  const result = db.prepare(`INSERT INTO rate_limits VALUES(?,1,?) ON CONFLICT(bucket)
-    DO UPDATE SET count=count+1 RETURNING count`).get(bucket, now + periodMs);
+  await db.run("DELETE FROM rate_limits WHERE expires_at<$1", [now]);
+  const result = await db.get(`INSERT INTO rate_limits VALUES($1,1,$2) ON CONFLICT(bucket)
+    DO UPDATE SET count=rate_limits.count+1 RETURNING count`, [bucket, now + periodMs]);
   if (Number(result?.count) > max) throw new AppError(429, "RATE_LIMITED", "Too many demo actions. Wait a minute before retrying.");
 }
 

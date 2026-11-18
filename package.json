@@ -15,11 +15,14 @@
     "demo:seed": "node --experimental-strip-types scripts/seed.ts",
     "demo:reset": "node --experimental-strip-types scripts/seed.ts --reset-synthetic-demo",
     "demo:backup": "node --experimental-strip-types scripts/backup.ts",
-    "auth:mailbox": "node scripts/mailbox.mjs"
+    "auth:mailbox": "node scripts/mailbox.mjs",
+    "db:local": "node scripts/local-postgres.mjs",
+    "db:migrate": "node --experimental-strip-types scripts/migrate.ts"
   },
   "dependencies": {
     "better-auth": "1.7.21",
     "next": "16.4.6",
+    "pg": "8.23.1",
     "qrcode": "1.5.4",
     "react": "19.3.1",
     "react-dom": "19.3.1"
@@ -27,6 +30,7 @@
   "devDependencies": {
     "@playwright/test": "1.65.0",
     "@types/node": "26.6.6",
+    "@types/pg": "8.23.1",
     "@types/qrcode": "1.5.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
