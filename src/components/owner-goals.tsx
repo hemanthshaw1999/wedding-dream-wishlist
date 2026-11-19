@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { GoalHistoryPage, OwnerGoal, OwnerWishlist } from "@/lib/wishlist";
 import { formatINR } from "@/lib/money";
 import { requestJson } from "./client-api";
+import { useRequestLock } from "./use-request-lock";
 
 type Draft = { id: string | null; title: string; description: string; target: string; version: number; acknowledged: boolean };
 type Props = {
@@ -15,8 +16,9 @@ type Props = {
 export function OwnerGoals({ wishlist, busy, onChange, onRefresh }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [reason, setReason] = useState("");
-  const [history, setHistory] = useState<GoalHistoryPage | null>(null);
-  const [historyBusy, setHistoryBusy] = useState(false);
+  const [loadedHistory, setHistory] = useState<{ version: number; value: GoalHistoryPage } | null>(null);
+  const history = loadedHistory?.version === wishlist.version ? loadedHistory.value : null;
+  const { busy: historyBusy, start: startHistory, finish: finishHistory } = useRequestLock();
   const [historyError, setHistoryError] = useState("");
   const editable = !["closed", "archived", "expired"].includes(wishlist.availability);
   const selected = wishlist.goals.find((goal) => goal.id === draft?.id);
@@ -46,10 +48,11 @@ export function OwnerGoals({ wishlist, busy, onChange, onRefresh }: Props) {
     await change({ action: "reorder", goalIds: ids, version: wishlist.version });
   }
   async function loadHistory() {
-    setHistoryBusy(true); setHistoryError("");
-    try { setHistory(await requestJson<GoalHistoryPage>(`/api/owner/wishlists/${wishlist.id}/goals`, "GET")); }
+    if (!startHistory()) return;
+    setHistoryError("");
+    try { setHistory({ version: wishlist.version, value: await requestJson<GoalHistoryPage>(`/api/owner/wishlists/${wishlist.id}/goals`, "GET") }); }
     catch (error) { setHistoryError(error instanceof Error ? error.message : "Could not load goal history."); }
-    finally { setHistoryBusy(false); }
+    finally { finishHistory(); }
   }
   return (
     <section className="panel owner-controls" aria-labelledby="manage-goals-title">

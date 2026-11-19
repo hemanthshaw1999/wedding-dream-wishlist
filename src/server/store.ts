@@ -66,12 +66,15 @@ export class WishlistStore {
   }
 
   async getOwner(id: string, ownerId: string, lock = false): Promise<OwnerWishlist> {
-    const row = await this.row(id, ownerId, lock);
-    const value = await this.project(row);
-    const reported = await this.db.all<{ goal_id: string }>("SELECT DISTINCT goal_id FROM contributions WHERE wishlist_id=$1", [id]);
-    const reportedIds = new Set(reported.map((goal) => goal.goal_id));
-    return { ...value, id: row.id, state: row.state, visibility: row.visibility, version: row.version,
-      goals: value.goals.map((goal) => ({ ...goal, hasReports: reportedIds.has(goal.id) })) };
+    return this.db.readSnapshot(async (tx) => {
+      const scoped = new WishlistStore(tx);
+      const row = await scoped.row(id, ownerId, lock);
+      const value = await scoped.project(row);
+      const reported = await tx.all<{ goal_id: string }>("SELECT DISTINCT goal_id FROM contributions WHERE wishlist_id=$1", [id]);
+      const reportedIds = new Set(reported.map((goal) => goal.goal_id));
+      return { ...value, id: row.id, state: row.state, visibility: row.visibility, version: row.version,
+        goals: value.goals.map((goal) => ({ ...goal, hasReports: reportedIds.has(goal.id) })) };
+    });
   }
 
   async listOwner(ownerId: string): Promise<{ id: string; displayNames: string; slug: string; state: WishlistState }[]> {
@@ -81,18 +84,20 @@ export class WishlistStore {
   }
 
   async getPublic(slug: string, lock = false): Promise<PublicWishlist> {
-    const row = await this.db.get<WishlistRow>(`SELECT id,slug,display_names,story,wedding_date,expires_at,
-      visibility,state,version FROM wishlists WHERE slug=$1 AND state IN ('published','paused','closed')
-      AND visibility IN ('public','unlisted') ${lock ? "FOR UPDATE" : ""}`, [slug]);
-    if (!row) throw new AppError(404, "NOT_FOUND", "Wishlist not available.");
-    return this.project(row);
+    return this.db.readSnapshot(async (tx) => {
+      const row = await tx.get<WishlistRow>(`SELECT id,slug,display_names,story,wedding_date,expires_at,
+        visibility,state,version FROM wishlists WHERE slug=$1 AND state IN ('published','paused','closed')
+        AND visibility IN ('public','unlisted') ${lock ? "FOR UPDATE" : ""}`, [slug]);
+      if (!row) throw new AppError(404, "NOT_FOUND", "Wishlist not available.");
+      return new WishlistStore(tx).project(row);
+    });
   }
 
   async create(ownerId: string, input: NewWishlist): Promise<OwnerWishlist> {
     const id = randomUUID();
     const now = new Date().toISOString();
     try {
-      await this.db.transaction(async (tx) => {
+      return await this.db.transaction(async (tx) => {
         await tx.run(`INSERT INTO wishlists(id,slug,display_names,story,wedding_date,expires_at,
           visibility,state,currency,payment_mode,funding_policy,created_at,updated_at)
           VALUES($1,$2,$3,$4,$5,$6,$7,'draft','INR','demo','undecided',$8,$8)`,
@@ -104,6 +109,7 @@ export class WishlistStore {
           await tx.run("INSERT INTO goals(id,wishlist_id,title,description,target_paise,position) VALUES($1,$2,$3,$4,$5,$6)", [randomUUID(), id, goal.title, goal.description, goal.targetPaise, position]);
         }
         await tx.run("INSERT INTO audit_entries VALUES($1,$2,$3,'created',NULL,'draft',$4)", [randomUUID(), id, ownerId, now]);
+        return new WishlistStore(tx).getOwner(id, ownerId);
       });
     } catch (error) {
       if (error instanceof Error && "code" in error && error.code === "23505" &&
@@ -112,7 +118,6 @@ export class WishlistStore {
       }
       throw error;
     }
-    return this.getOwner(id, ownerId);
   }
 
   async goalHistory(id: string, ownerId: string): Promise<GoalHistoryPage> {
@@ -184,7 +189,7 @@ export class WishlistStore {
 
   async transition(id: string, ownerId: string, to: unknown, expectedVersion: unknown): Promise<OwnerWishlist> {
     if (!Number.isSafeInteger(expectedVersion) || Number(expectedVersion) < 1) throw new AppError(422, "VALIDATION", "A valid version is required.");
-    await this.db.transaction(async (tx) => {
+    return this.db.transaction(async (tx) => {
       const row = await new WishlistStore(tx).row(id, ownerId, true);
       if (row.version !== expectedVersion) throw new AppError(409, "STALE_VERSION", "This wishlist changed in another tab. Refresh before trying again.");
       assertTransition(row.state, to);
@@ -192,7 +197,7 @@ export class WishlistStore {
       const now = new Date().toISOString();
       await tx.run("UPDATE wishlists SET state=$1,version=version+1,updated_at=$2 WHERE id=$3", [to, now, id]);
       await tx.run("INSERT INTO audit_entries VALUES($1,$2,$3,'state_changed',$4,$5,$6)", [randomUUID(), id, ownerId, row.state, to, now]);
+      return new WishlistStore(tx).getOwner(id, ownerId);
     });
-    return this.getOwner(id, ownerId);
   }
 }

@@ -15,7 +15,7 @@ export type OwnerClaim = ClaimReceipt & {
   version: number; createdAt: string;
 };
 export type ClaimDashboard = {
-  claims: OwnerClaim[]; total: number; page: number;
+  claims: OwnerClaim[]; total: number; page: number; revision: number;
   totals: { reportedPaise: number; needsReviewPaise: number; ownerConfirmedPaise: number; rejectedPaise: number };
 };
 

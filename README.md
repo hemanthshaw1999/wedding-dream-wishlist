@@ -8,7 +8,9 @@
 
 **Goal management implemented:** owner-scoped add/edit/reorder/archive/restore, immutable revisions, public target-change history and preserved financial records. Reported purpose cannot be rewritten; target changes require acknowledgement and cannot fall below current confirmed progress.
 
-**Runtime preparation implemented:** truthful `/api/health/ready`, minimum-schema and permission checks, an independently scoped email-only worker role, and separate Netlify web/worker configuration. **127 unit/integration tests and 8 desktop/mobile browser journeys passed**, plus lint/type-check/build. Adapters are not deployed; provider bundling, scheduling, inbox delivery and combined free-tier compute/credit budgets remain unverified. See `docs/operations-and-launch.md` before configuring either project.
+**Runtime preparation implemented:** truthful `/api/health/ready`, minimum-schema and permission checks, an independently scoped email-only worker role, and separate Netlify web/worker configuration. Adapters are not deployed; provider bundling, scheduling, inbox delivery and combined free-tier compute/credit budgets remain unverified. See `docs/operations-and-launch.md` before configuring either project.
+
+**Onboarding and consistency improved:** explicit signup/verification/sign-in steps, password visibility controls, safe return-to-wishlist navigation, responsive account screens, per-action submission locks and confirmation dialogs. Reports/totals/count/revision now use one owner-scoped SQL statement instead of eight queries; multi-query wishlist and whole-page owner reads use consistent PostgreSQL snapshots. **131 unit/integration tests and 20 desktop/mobile browser journeys passed**, plus lint/type-check/optimized build. This is measured query-count improvement, not a production latency or load guarantee.
 
 ## What actually runs
 
@@ -92,7 +94,7 @@ In another local project terminal run:
 npm run auth:mailbox
 ```
 
-Open your verification link privately on this computer, then sign in. The mailbox is terminal-only, not an anonymous HTTP endpoint; no actual email is sent. Recovery uses the same local-only delivery adapter. **Never paste passwords or these links into chat.** Create your own wishlist to manage its reports; the old seeded example is not silently assigned to new accounts. Old shared demo sessions are invalidated; `/api/demo-session` returns 410.
+Open your verification link privately on this computer, then use **Continue to sign in** with the same email and password. The signup confirmation preserves your email, clears the password and offers verification resend. The mailbox is terminal-only, not an anonymous HTTP endpoint; no actual email is sent. Recovery uses the same local-only delivery adapter. **Never paste passwords or these links into chat.** Create your own wishlist to manage its reports; the old seeded example is not silently assigned to new accounts. Old shared demo sessions are invalidated; `/api/demo-session` returns 410.
 
 No `.env` file is needed locally. Database credentials are generated in ignored `data\local-postgres.json`; a persistent cluster lives in `data\postgres-cluster`. Keep both private. Schema migrations use a separate owner role; the running app cannot create/alter tables, overwrite migration history or delete ledger/audit rows. App startup rejects administrator roles. The launcher generates a high-entropy auth secret in ignored `data\local-auth-secret.txt`, binds to `127.0.0.1`, fixes the expected origin and disables Next telemetry. Better Auth telemetry is explicitly disabled. This does not control other software's telemetry. Local filesystem users remain trusted; the mailbox/secrets setup is not production identity infrastructure.
 

@@ -4,6 +4,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { createAuth } from "../src/server/auth";
 import { enforceRateLimit } from "../src/server/http";
 import { createTestDatabase } from "./db-fixture";
+import { ownerReturnPath } from "../src/lib/auth-navigation";
 
 let fixture: Awaited<ReturnType<typeof createTestDatabase>>;
 let db: Database;
@@ -41,6 +42,28 @@ async function verified() {
   return { email, cookie, login };
 }
 describe("maintained authentication with PostgreSQL and local delivery", () => {
+  it("only resumes exact owner wishlist paths, never external or ambiguous destinations", () => {
+    const path = `/owner/${randomUUID()}`;
+    expect(ownerReturnPath(path)).toBe(path);
+    for (const value of [undefined, [path], "https://evil.example", "//evil.example", "/\\evil.example",
+      `${path}?next=https://evil.example`, `${path}/../other`, "/owner/not-a-uuid", "/owner/%2f%2fevil.example"]) {
+      expect(ownerReturnPath(value)).toBe("/owner");
+    }
+  });
+  it("resends verification anonymously without revealing missing or already-verified accounts", async () => {
+    const email = `${randomUUID()}@example.test`;
+    expect((await post("sign-up/email", { email, password, name: "Fictional" })).status).toBe(200);
+    const before = await db.get("SELECT count(*) AS count FROM auth_local_outbox WHERE recipient=$1", [email]);
+    const existing = await post("send-verification-email", { email, callbackURL: "/owner?verification=returned" });
+    const missing = await post("send-verification-email", { email: `${randomUUID()}@example.test` });
+    const verifiedEmail = (await verified()).email;
+    const alreadyVerified = await post("send-verification-email", { email: verifiedEmail });
+    for (const result of [existing, missing, alreadyVerified]) {
+      expect(result.status).toBe(200); expect(await result.json()).toEqual({ status: true });
+    }
+    const after = await db.get("SELECT count(*) AS count FROM auth_local_outbox WHERE recipient=$1", [email]);
+    expect(Number(after?.count)).toBe(Number(before?.count) + 1);
+  });
   it("requires verification, hashes passwords and prevents duplicate signup enumeration", async () => {
     const body = { email: "fictional@example.test", password, name: "Fictional" };
     const initial = await post("sign-up/email", body);

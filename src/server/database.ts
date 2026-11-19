@@ -78,11 +78,19 @@ export class Database {
   }
 
   async transaction<T>(work: (db: Database) => Promise<T>): Promise<T> {
+    return this.transact(work, false);
+  }
+
+  async readSnapshot<T>(work: (db: Database) => Promise<T>): Promise<T> {
+    return this.client ? work(this) : this.transact(work, true);
+  }
+
+  private async transact<T>(work: (db: Database) => Promise<T>, readOnly: boolean): Promise<T> {
     if (this.client) throw new Error("Nested database transactions are not supported.");
     await this.ready();
     const client = await this.pool.connect();
     try {
-      await client.query("BEGIN");
+      await client.query(readOnly ? "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY" : "BEGIN");
       const result = await work(new Database(this.pool, client));
       await client.query("COMMIT");
       return result;

@@ -19,7 +19,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <div className="demo-banner">{en.demo} Local synthetic-data application.</div>
         <nav className="navigation" aria-label="Main navigation">
           <Link className="wordmark" href="/">Dream Wishlist <span>for a life together</span></Link>
-          <Link href="/owner">Demo workspace</Link>
+          <Link href="/owner">My workspace</Link>
         </nav>
         <main id="main" className="container" tabIndex={-1}>{children}</main>
         <footer className="footer"><p>{en.demo} No payment processing. No third-party analytics.</p><Link href="/privacy">Demo privacy and limitations</Link></footer>

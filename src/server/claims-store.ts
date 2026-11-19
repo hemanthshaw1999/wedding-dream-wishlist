@@ -11,7 +11,8 @@ type ClaimRow = {
   version: number; created_at: string; duplicate_reference: number; request_hash: string; wishlist_id: string;
 };
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
-const selection = `SELECT c.*,g.title AS goal_title,r.label AS recipient_label,
+const selection = `SELECT c.id,c.status,c.amount_paise::text,c.token_expires_at,c.guest_name,c.guest_message,
+  c.reference,c.version,c.created_at,c.request_hash,c.wishlist_id,g.title AS goal_title,r.label AS recipient_label,
   CASE WHEN c.reference<>'' AND EXISTS(SELECT 1 FROM contributions other
     WHERE other.wishlist_id=c.wishlist_id AND other.reference=c.reference AND other.id<>c.id)
     THEN 1 ELSE 0 END AS duplicate_reference FROM contributions c JOIN goals g ON g.id=c.goal_id
@@ -73,21 +74,32 @@ export class ClaimsStore {
   }
 
   async dashboard(wishlistId: string, ownerId: string, filter = "all", page = 1): Promise<ClaimDashboard> {
-    await new WishlistStore(this.db).getOwner(wishlistId, ownerId);
     if (!["all", "reported", "needs_review", "owner_confirmed", "rejected"].includes(filter) ||
       !Number.isSafeInteger(page) || page < 1 || page > 10000) throw new AppError(422, "VALIDATION", "Invalid report filter or page.");
-    const params = filter === "all" ? [wishlistId] : [wishlistId, filter];
-    const where = `c.wishlist_id=$1${filter === "all" ? "" : " AND c.status=$2"}`;
-    const rows = await this.db.all<ClaimRow>(`${selection} WHERE ${where} ORDER BY c.created_at DESC,c.id LIMIT 50 OFFSET $${params.length + 1}`, [...params, (page - 1) * 50]);
-    const count = await this.db.get<{ count: string }>(`SELECT COUNT(*) AS count FROM contributions c WHERE ${where}`, params);
-    const sums = await this.db.get<{ reported: string; review: string; confirmed: string; rejected: string }>(`SELECT
+    const snapshot = await this.db.get<{
+      allowed: boolean; claims: ClaimRow[]; count: string; revision: string;
+      reported: string; review: string; confirmed: string; rejected: string;
+    }>(`WITH scoped AS (
+      SELECT w.id FROM wishlists w JOIN memberships m ON m.wishlist_id=w.id
+      WHERE w.id=$1 AND m.user_id=$2 AND m.role='owner'
+    ), page AS (
+      ${selection} WHERE c.wishlist_id=(SELECT id FROM scoped) AND ($3='all' OR c.status=$3)
+      ORDER BY c.created_at DESC,c.id LIMIT 50 OFFSET $4
+    ), totals AS (SELECT COUNT(*) FILTER(WHERE $3='all' OR status=$3) AS count,
+      COALESCE(SUM(version::bigint),0)::text AS revision,
       COALESCE(SUM(CASE WHEN status='reported' THEN amount_paise ELSE 0 END),0) AS reported,
       COALESCE(SUM(CASE WHEN status='needs_review' THEN amount_paise ELSE 0 END),0) AS review,
       COALESCE(SUM(CASE WHEN status='owner_confirmed' THEN amount_paise ELSE 0 END),0) AS confirmed,
-      COALESCE(SUM(CASE WHEN status='rejected' THEN amount_paise ELSE 0 END),0) AS rejected FROM contributions WHERE wishlist_id=$1`, [wishlistId]);
-    return { claims: rows.map(ownerClaim), total: integer(count?.count), page,
-      totals: { reportedPaise: integer(sums?.reported), needsReviewPaise: integer(sums?.review),
-        ownerConfirmedPaise: integer(sums?.confirmed), rejectedPaise: integer(sums?.rejected) } };
+      COALESCE(SUM(CASE WHEN status='rejected' THEN amount_paise ELSE 0 END),0) AS rejected
+      FROM contributions WHERE wishlist_id=(SELECT id FROM scoped))
+      SELECT EXISTS(SELECT 1 FROM scoped) AS allowed,totals.*,
+        COALESCE((SELECT jsonb_agg(page ORDER BY created_at DESC,id) FROM page),'[]'::jsonb) AS claims
+      FROM totals`, [wishlistId, ownerId, filter, (page - 1) * 50]);
+    if (!snapshot) throw new Error("Report snapshot is missing.");
+    if (!snapshot.allowed) throw new AppError(404, "NOT_FOUND", "Wishlist not found.");
+    return { claims: snapshot.claims.map(ownerClaim), total: integer(snapshot.count), page, revision: integer(snapshot.revision),
+      totals: { reportedPaise: integer(snapshot.reported), needsReviewPaise: integer(snapshot.review),
+        ownerConfirmedPaise: integer(snapshot.confirmed), rejectedPaise: integer(snapshot.rejected) } };
   }
 
   async resolve(wishlistId: string, id: string, ownerId: string, to: unknown, version: unknown, reason: unknown): Promise<OwnerClaim> {

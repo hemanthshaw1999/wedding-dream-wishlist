@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { openDatabase } from "../../src/server/database";
@@ -21,11 +21,12 @@ function e2eDatabase() {
   url.pathname = `/${name}`;
   return openDatabase(url.toString());
 }
-async function verificationLink(email: string): Promise<string> {
+const verificationLink = (email: string) => mailboxLink(email, "verification");
+async function mailboxLink(email: string, kind: "verification" | "recovery"): Promise<string> {
   const db = e2eDatabase();
   try {
-    const entry = await db.get("SELECT url FROM auth_local_outbox WHERE recipient=$1 AND kind='verification' ORDER BY created_at DESC LIMIT 1", [email]);
-    if (!entry) throw new Error("No synthetic verification message was queued.");
+    const entry = await db.get("SELECT url FROM auth_local_outbox WHERE recipient=$1 AND kind=$2 ORDER BY created_at DESC LIMIT 1", [email, kind]);
+    if (!entry) throw new Error("No synthetic authentication message was queued.");
     return String(entry.url);
   } finally { await db.close(); }
 }
@@ -123,6 +124,8 @@ test("verified account, persisted wishlist, anonymous report and audited manual 
   await page.getByLabel("I understand confirmation is manual").check();
   await page.getByRole("button", { name: "Confirm demo report" }).click();
   await expect(page.getByText("Confirmed progress: ₹500")).toBeVisible();
+  await expect(page.getByLabel("Reason for next review action")).toHaveValue("");
+  await expect(page.getByLabel("I understand confirmation is manual")).not.toBeChecked();
   const csv = await page.request.get(`/api/owner/wishlists/${ownerId}/reports/export`);
   expect(csv.status()).toBe(200); expect(await csv.text()).toContain("\"'=1+1\"");
   await page.screenshot({ path: `test-results/${testInfo.project.name}-owner.png`, fullPage: true });
@@ -130,6 +133,38 @@ test("verified account, persisted wishlist, anonymous report and audited manual 
   await guest.getByRole("button", { name: "Check report status" }).click();
   await expect(guest.getByRole("heading", { name: "Owner-confirmed demo report" })).toBeVisible();
   expect(guest.url()).not.toContain("#");
+  await guest.reload();
+  await guest.getByRole("button", { name: "Check report status" }).click();
+  await expect(guest.getByRole("heading", { name: "Owner-confirmed demo report" })).toBeVisible();
+  let releaseStatus = () => {};
+  const pendingStatus = new Promise<void>((resolve) => { releaseStatus = resolve; });
+  await guest.route("**/api/guest/status", async (route) => {
+    const response = await route.fetch(); await pendingStatus; await route.fulfill({ response });
+  });
+  try {
+    await guest.getByRole("button", { name: "Check report status" }).click();
+    await expect(guest.getByRole("button", { name: "Checking...", exact: true })).toBeDisabled();
+    await guest.evaluate(() => { window.location.hash = "0".repeat(64); });
+    releaseStatus();
+    await expect(guest.getByRole("alert").filter({ hasText: "A different private link was opened" })).toBeVisible();
+    await expect(guest.getByRole("heading", { name: "Owner-confirmed demo report" })).not.toBeVisible();
+  } finally { releaseStatus(); await guest.unroute("**/api/guest/status"); }
+  await guest.goto(privateUrl);
+  await guest.getByRole("button", { name: "Check report status" }).click();
+  await expect(guest.getByRole("heading", { name: "Owner-confirmed demo report" })).toBeVisible();
+  await guest.route("**/api/guest/status", (route) => route.abort("failed"));
+  await guest.getByRole("button", { name: "Check report status" }).click();
+  await expect(guest.getByRole("alert").filter({ hasText: "server could not be reached" })).toBeVisible();
+  await expect(guest.getByRole("heading", { name: "Owner-confirmed demo report" })).not.toBeVisible();
+  await guest.unroute("**/api/guest/status");
+  await guest.getByRole("button", { name: "Check report status" }).click();
+  await expect(guest.getByRole("heading", { name: "Owner-confirmed demo report" })).toBeVisible();
+  await guest.getByRole("button", { name: "Forget private key in this tab" }).click();
+  expect(await guest.evaluate(() => Object.keys(sessionStorage).some((key) => key.startsWith("wishlist-report:") || key === "wishlist-private-status"))).toBe(false);
+  await guest.reload();
+  await guest.getByRole("button", { name: "Check report status" }).click();
+  await expect(guest.getByRole("alert").filter({ hasText: "Private report not available" })).toBeVisible();
+  await expect(guest.getByRole("heading", { name: "Owner-confirmed demo report" })).not.toBeVisible();
   await guest.goto(`${origin}/w/${slug}`);
   expect(await guest.locator("body").innerText()).not.toContain("A private fictional message");
   await expect(guest.getByText("Confirmed progress: ₹500")).toBeVisible();
@@ -225,7 +260,7 @@ test("keyboard access, responsive forms, missing session and offline retry prese
   await expect(page.getByLabel("Target amount")).toHaveValue("500");
   await page.route("**/api/owner/wishlists", (route) => route.abort("failed"));
   await page.getByRole("button", { name: "Save draft and preview" }).click();
-  await expect(page.getByRole("alert").filter({ hasText: "server could not be reached" })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "The save outcome is unknown" })).toBeVisible();
   await expect(page.getByLabel("Target amount")).toHaveValue("500");
 });
 
@@ -318,4 +353,222 @@ test("responsive goal management preserves gift history and exposes only public 
     await expect(manager.getByLabel("Goal target amount")).toHaveValue("1600");
     await expect(manager.getByLabel("Reason for goal change")).toHaveValue("Private unsaved goal reason");
   } finally { await visitor.close(); }
+});
+
+test("signup guides verification and returns to sign in without trapping the customer", async ({ page }, testInfo) => {
+  const email = `${randomUUID()}@example.test`;
+  await page.goto("/owner");
+  await page.getByRole("button", { name: "Create an account", exact: true }).click();
+  await page.getByLabel("Your display name").fill("Fictional onboarding");
+  await page.getByLabel("Account email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  let release = () => {};
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  let submissions = 0;
+  await page.route("**/api/auth/sign-up/email", async (route) => { submissions++; await pending; await route.continue(); });
+  await page.locator("form").evaluate((form) => {
+    if (!(form instanceof HTMLFormElement)) throw new Error("Missing signup form.");
+    form.requestSubmit(); form.requestSubmit();
+  });
+  try {
+    await expect(page.getByRole("button", { name: "Please wait...", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Forgot password", exact: true })).toBeDisabled();
+    await expect(page.getByLabel("Account email")).toBeDisabled();
+    expect(submissions).toBe(1);
+  } finally { release(); }
+  await expect(page.getByRole("status").filter({ hasText: "verification message" })).toBeVisible();
+  await page.unroute("**/api/auth/sign-up/email");
+  expect(submissions).toBe(1);
+  await page.screenshot({ path: `test-results/${testInfo.project.name}-signup-next-step.png`, fullPage: true });
+  await expect(page.getByRole("heading", { name: "Check your verification message", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Continue to sign in", exact: true }).click();
+  await expect(page.getByLabel("Account email")).toHaveValue(email);
+  await expect(page.getByLabel("Password", { exact: true })).toHaveValue("");
+  await expect(page.getByRole("status")).toHaveText("");
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Check your verification message", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Resend verification message", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("If eligible");
+  await page.goto(await verificationLink(email));
+  await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("verified email");
+  await page.getByLabel("Account email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Show password", exact: true }).click();
+  await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute("type", "text");
+  await page.getByRole("button", { name: "Hide password", exact: true }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Create a wishlist", exact: true })).toBeVisible();
+});
+
+test("expired preview returns after sign-in and intentional sign-out clears unsaved details", async ({ page }) => {
+  const email = await account(page.request);
+  const input = fixture();
+  const created = await (await page.request.post("/api/owner/wishlists", { data: input, headers: { Origin: origin } })).json();
+  await page.request.post("/api/auth/sign-out", { data: {}, headers: { Origin: origin } });
+  await page.goto(`/owner/${created.id}`);
+  await page.getByRole("link", { name: "Sign in to your account", exact: true }).click();
+  await page.getByLabel("Account email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(`${origin}/owner/${created.id}`);
+  await page.getByRole("link", { name: "Back to workspace", exact: true }).click();
+  await page.getByLabel("Couple display names").fill("Private unsaved fictional names");
+  let releaseSignOut = () => {};
+  const pendingSignOut = new Promise<void>((resolve) => { releaseSignOut = resolve; });
+  await page.route("**/owner?*", async (route) => {
+    if (route.request().headers().rsc === "1") await pendingSignOut;
+    await route.continue();
+  });
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  try {
+    await expect(page.getByRole("status").filter({ hasText: "Signed out. Loading sign-in" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in", exact: true })).not.toBeVisible();
+  } finally { releaseSignOut(); }
+  await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
+  await page.unroute("**/owner?*");
+  await page.getByLabel("Account email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByLabel("Couple display names")).toHaveValue("");
+  await expect(page.getByRole("link", { name: input.displayNames, exact: true })).toBeVisible();
+  await page.getByLabel("Couple display names").fill("Unsaved details belonging to the first account");
+  await page.request.post("/api/auth/sign-out", { data: {}, headers: { Origin: origin } });
+  await account(page.request);
+  await page.getByRole("button", { name: "Refresh saved wishlists", exact: true }).click();
+  await expect(page.getByLabel("Couple display names")).toHaveValue("");
+  await expect(page.getByRole("link", { name: input.displayNames, exact: true })).not.toBeVisible();
+});
+
+test("password recovery has actionable errors and a verified return to sign in", async ({ page }) => {
+  const email = await account(page.request);
+  await page.request.post("/api/auth/sign-out", { data: {}, headers: { Origin: origin } });
+  await page.goto("/reset-password");
+  await page.getByLabel("New password").fill(`${password}-updated`);
+  await page.getByRole("button", { name: "Update password", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "missing or invalid" })).toBeVisible();
+  await page.getByRole("link", { name: "Request a new recovery link", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Recover account", exact: true })).toBeVisible();
+  await page.getByLabel("Account email").fill(email);
+  await page.getByRole("button", { name: "Request recovery link", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("If an eligible account exists");
+  await page.goto(await mailboxLink(email, "recovery"));
+  await page.getByLabel("New password").fill(`${password}-updated`);
+  await page.getByRole("button", { name: "Update password", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Password updated");
+  expect(page.url()).not.toContain("token");
+  await page.getByRole("link", { name: "Return to sign in", exact: true }).click();
+  await page.getByLabel("Account email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(`${password}-updated`);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Create a wishlist", exact: true })).toBeVisible();
+});
+
+test("saved review survives a failed refresh and irreversible actions require confirmation", async ({ page }) => {
+  await account(page.request);
+  const input = fixture();
+  const created = await (await page.request.post("/api/owner/wishlists", { data: input, headers: { Origin: origin } })).json();
+  expect((await page.request.patch(`/api/owner/wishlists/${created.id}`, {
+    data: { state: "published", version: created.version }, headers: { Origin: origin }
+  })).status()).toBe(200);
+  const projection = await (await page.request.get(`/api/public/wishlists/${input.slug}`)).json();
+  expect((await page.request.post(`/api/public/wishlists/${input.slug}/reports`, {
+    data: { goalId: projection.goals[0].id, recipientSnapshotId: projection.recipientSnapshot.id, amount: "500",
+      currency: "INR", token: randomUUID().replaceAll("-", "") + randomUUID().replaceAll("-", "") }, headers: { Origin: origin }
+  })).status()).toBe(200);
+  await page.goto(`/owner/${created.id}`);
+  const reports = page.getByRole("region", { name: "Guest reports and manual confirmation", exact: true });
+  await page.route(/\/api\/owner\/wishlists\/[^/]+\/reports\?/, (route) => route.abort("failed"));
+  await reports.getByLabel("Reason for next review action").fill("Matched a fictional record");
+  await reports.getByLabel("I understand confirmation is manual").check();
+  await reports.getByRole("button", { name: "Confirm demo report", exact: true }).click();
+  await expect(reports.getByRole("alert")).toContainText("The review was saved, but reports could not refresh");
+  await expect(reports.getByLabel("I understand confirmation is manual")).not.toBeChecked();
+  await page.unroute(/\/api\/owner\/wishlists\/[^/]+\/reports\?/);
+  await reports.getByRole("button", { name: "Refresh reports", exact: true }).click();
+  await reports.getByLabel("Reason for next review action").fill("Correcting a fictional mistake");
+  await reports.getByRole("button", { name: "Reverse confirmation into review", exact: true }).click();
+  const reverse = page.getByRole("dialog", { name: "Reverse this confirmation?", exact: true });
+  await expect(reverse).toBeVisible();
+  await reverse.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(reverse).not.toBeVisible();
+  await expect(reports.getByRole("button", { name: "Reverse confirmation into review", exact: true })).toBeFocused();
+  await reports.getByRole("button", { name: "Reverse confirmation into review", exact: true }).click();
+  await reverse.getByRole("button", { name: "Reverse confirmation", exact: true }).click();
+  await expect(page.getByText("Confirmed progress: ₹0")).toBeVisible();
+  await page.getByRole("button", { name: "Close wishlist", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Close this wishlist?", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByText("Current state: published.")).toBeVisible();
+  await page.getByRole("button", { name: "Close wishlist", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Close wishlist permanently", exact: true }).click();
+  await expect(page.getByText("Current state: closed.")).toBeVisible();
+  await page.getByRole("button", { name: "Archive wishlist", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Archive wishlist permanently", exact: true }).click();
+  await expect(page.getByText("Current state: archived.")).toBeVisible();
+  expect((await page.request.get(`/api/public/wishlists/${input.slug}`)).status()).toBe(404);
+});
+
+test("a delayed older response cannot roll back newly confirmed report progress", async ({ page }) => {
+  await account(page.request);
+  const input = fixture();
+  const created = await (await page.request.post("/api/owner/wishlists", { data: input, headers: { Origin: origin } })).json();
+  await page.request.patch(`/api/owner/wishlists/${created.id}`, {
+    data: { state: "published", version: created.version }, headers: { Origin: origin }
+  });
+  const projection = await (await page.request.get(`/api/public/wishlists/${input.slug}`)).json();
+  const entry = await (await page.request.post(`/api/public/wishlists/${input.slug}/reports`, {
+    data: { goalId: projection.goals[0].id, recipientSnapshotId: projection.recipientSnapshot.id, amount: "500",
+      currency: "INR", token: randomUUID().replaceAll("-", "") + randomUUID().replaceAll("-", "") }, headers: { Origin: origin }
+  })).json();
+  const older = await (await page.request.get(`/api/owner/wishlists/${created.id}/reports`)).json();
+  await page.goto(`/owner/${created.id}`);
+  let release = () => {};
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  await page.route(/\/api\/owner\/wishlists\/[^/]+\/reports\?/, async (route) => {
+    await pending; await route.fulfill({ json: older });
+  });
+  try {
+    await page.getByRole("button", { name: "Refresh reports", exact: true }).click();
+    expect((await page.request.patch(`/api/owner/wishlists/${created.id}/reports/${entry.id}`, {
+      data: { status: "owner_confirmed", version: 1, reason: "Concurrent fictional check", acknowledged: true }, headers: { Origin: origin }
+    })).status()).toBe(200);
+    await page.getByRole("button", { name: "Refresh wishlist", exact: true }).click();
+    await expect(page.getByText("Confirmed progress: ₹500")).toBeVisible();
+    release();
+    await expect(page.getByRole("button", { name: "Refresh reports", exact: true })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Confirm demo report", exact: true })).not.toBeVisible();
+    await page.getByLabel("Reason for next review action").fill("Private follow-up check");
+    await expect(page.getByRole("button", { name: "Reverse confirmation into review", exact: true })).toBeEnabled();
+  } finally { release(); }
+});
+
+test("sign-out remains available when shared authentication budgets are exhausted", async ({ request }) => {
+  const email = await account(request);
+  const db = e2eDatabase();
+  const hash = (value: string) => createHash("sha256").update(value).digest("hex");
+  const minute = Math.floor(Date.now() / 60_000);
+  const buckets = [minute, minute + 1].flatMap((window) => [
+    hash(`auth-global:application:${window}`),
+    hash(`auth:/api/auth/sign-out:${hash("local")}:${window}`)
+  ]);
+  const previous = await db.all<{ bucket: string; count: number; expires_at: string }>(
+    "SELECT bucket,count,expires_at FROM rate_limits WHERE bucket=ANY($1::text[])", [buckets]);
+  try {
+    for (const bucket of buckets) await db.run(`INSERT INTO rate_limits VALUES($1,1000,$2)
+      ON CONFLICT(bucket) DO UPDATE SET count=1000,expires_at=EXCLUDED.expires_at`, [bucket, Date.now() + 180_000]);
+    expect((await request.post("/api/auth/sign-in/email", {
+      data: { email, password }, headers: { Origin: origin }
+    })).status()).toBe(429);
+    expect((await request.post("/api/auth/sign-out", {
+      data: {}, headers: { Origin: "https://evil.example" }
+    })).status()).toBe(403);
+    expect((await request.post("/api/auth/sign-out", { data: {}, headers: { Origin: origin } })).status()).toBe(200);
+    expect((await request.get("/api/owner/wishlists")).status()).toBe(401);
+  } finally {
+    await db.run("DELETE FROM rate_limits WHERE bucket=ANY($1::text[])", [buckets]);
+    for (const row of previous) await db.run("INSERT INTO rate_limits VALUES($1,$2,$3)", [row.bucket, row.count, row.expires_at]);
+    await db.close();
+  }
 });

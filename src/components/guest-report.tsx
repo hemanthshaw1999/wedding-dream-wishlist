@@ -7,6 +7,7 @@ import type { Goal, PublicWishlist } from "@/lib/wishlist";
 import type { ClaimReceipt } from "@/lib/claims";
 import { formatINR, parseINR } from "@/lib/money";
 import { requestJson } from "./client-api";
+import { useRequestLock } from "./use-request-lock";
 
 export function GuestReport({ wishlist, goal }: { wishlist: PublicWishlist; goal: Goal }) {
   const [open, setOpen] = useState(false);
@@ -16,7 +17,7 @@ export function GuestReport({ wishlist, goal }: { wishlist: PublicWishlist; goal
   const [reference, setReference] = useState("");
   const [review, setReview] = useState(false);
   const [qr, setQr] = useState("");
-  const [busy, setBusy] = useState(false);
+  const { busy, start, finish } = useRequestLock();
   const [error, setError] = useState("");
   const [receipt, setReceipt] = useState<ClaimReceipt | null>(null);
   const [privateUrl, setPrivateUrl] = useState("");
@@ -24,18 +25,21 @@ export function GuestReport({ wishlist, goal }: { wishlist: PublicWishlist; goal
   const field = (name: string) => `${goal.id}-${name}`;
   if (!recipient || wishlist.availability !== "available" || goal.archivedAt) return <p>Demo reports are unavailable for this {goal.archivedAt ? "archived goal" : "wishlist"}.</p>;
   async function prepare(event: React.FormEvent) {
-    event.preventDefault(); setError("");
+    event.preventDefault();
+    if (!start()) return;
+    setError("");
     try {
       const paise = parseINR(amount);
       if (paise < 100 || paise > 10_000_000) throw new Error("Use INR 1 to INR 1,00,000.");
       setQr(await QRCode.toDataURL(`DEMO-NOT-PAYABLE|${JSON.stringify({ goal: goal.id, amountPaise: paise, recipient: recipient?.id })}`, { width: 220, margin: 3 }));
       setReview(true);
     } catch (error) { setError(error instanceof Error ? error.message : "Could not prepare the demo report."); }
+    finally { finish(); }
   }
   async function report(event: React.FormEvent) {
     event.preventDefault();
-    if (busy) return;
-    setBusy(true); setError("");
+    if (!start()) return;
+    setError("");
     try {
       const storageKey = `wishlist-report:${goal.id}`;
       const existing = window.sessionStorage.getItem(storageKey);
@@ -48,12 +52,13 @@ export function GuestReport({ wishlist, goal }: { wishlist: PublicWishlist; goal
       });
       setReceipt(result);
     } catch (error) { setError(error instanceof Error ? error.message : "The outcome is unknown. Use the private status link before repeating a report."); }
-    finally { setBusy(false); }
+    finally { finish(); }
   }
   return (
     <div className="guest-report">
       {!open && <button className="button secondary" onClick={() => setOpen(true)}>Choose a demo gift</button>}
       {open && !review && <form onSubmit={prepare}>
+        <fieldset className="form-fields" disabled={busy} aria-label="Demo gift details">
         <p><strong>Demo - no real money.</strong> No transfer happens here. Do not enter real payment or bank details.</p>
         <label htmlFor={field("amount")}>Gift amount (INR)</label>
         <div className="actions">{["500", "2000", "5000"].map((preset) => <button key={preset} type="button" className="button secondary" aria-pressed={amount === preset} onClick={() => setAmount(preset)}>{formatINR(Number(preset) * 100)}</button>)}</div>
@@ -62,7 +67,8 @@ export function GuestReport({ wishlist, goal }: { wishlist: PublicWishlist; goal
         <label htmlFor={field("name")}>Guest name (optional, private)</label><input id={field("name")} maxLength={100} value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
         <label htmlFor={field("message")}>Message (optional, private)</label><textarea id={field("message")} maxLength={500} value={message} onChange={(e) => setMessage(e.target.value)} />
         <label htmlFor={field("reference")}>Fictional reference (optional, not proof)</label><input id={field("reference")} maxLength={64} value={reference} onChange={(e) => setReference(e.target.value)} autoComplete="off" />
-        <div className="actions"><button className="button">Review demo gift</button></div>
+        <div className="actions"><button className="button">{busy ? "Preparing..." : "Review demo gift"}</button></div>
+        </fieldset>
       </form>}
       {review && !receipt && <form onSubmit={report}>
         <h4>Review before reporting</h4>

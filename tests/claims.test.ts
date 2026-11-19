@@ -30,6 +30,35 @@ const progress = async () => (await wishlists.getPublic(wishlist.slug)).goals[0]
 const count = async (table: "contributions" | "claim_events") => Number((await db.get(`SELECT COUNT(*) AS count FROM ${table}`))?.count);
 
 describe("PostgreSQL manual reports and reproducible truthful progress", () => {
+  it("keeps reports, totals, count and revision in one bounded database snapshot", async () => {
+    const first = await claims.report(wishlist.slug, report());
+    await claims.report(wishlist.slug, report({ amount: "250" }));
+    const query = vi.spyOn(db.pool, "query");
+    const before = await claims.dashboard(wishlist.id, "owner-a");
+    expect(query).toHaveBeenCalledTimes(1);
+    query.mockRestore();
+    expect(before).toMatchObject({ total: 2, revision: 2, totals: { reportedPaise: 75_000, ownerConfirmedPaise: 0 } });
+    expect(before.claims.map((entry) => entry.amountPaise).sort()).toEqual([25_000, 50_000]);
+    await claims.resolve(wishlist.id, first.id, "owner-a", "owner_confirmed", 1, "Fictional record checked");
+    const filtered = await claims.dashboard(wishlist.id, "owner-a", "reported");
+    expect(filtered).toMatchObject({ total: 1, revision: 3, totals: { reportedPaise: 25_000, ownerConfirmedPaise: 50_000 } });
+    expect(filtered.claims).toHaveLength(1);
+    expect((await claims.dashboard(wishlist.id, "owner-a", "reported", 2)).claims).toEqual([]);
+  });
+  it("holds a consistent whole-page read while a confirmation commits on another connection", async () => {
+    const entry = await claims.report(wishlist.slug, report());
+    await db.readSnapshot(async (tx) => {
+      expect((await new WishlistStore(tx).getPublic(wishlist.slug)).goals[0].confirmedPaise).toBe(0);
+      await claims.resolve(wishlist.id, entry.id, "owner-a", "owner_confirmed", 1, "Concurrent fictional check");
+      const owner = await new WishlistStore(tx).getOwner(wishlist.id, "owner-a");
+      const dashboard = await new ClaimsStore(tx).dashboard(wishlist.id, "owner-a");
+      expect(owner.goals[0].confirmedPaise).toBe(0);
+      expect(dashboard).toMatchObject({ revision: 1, totals: { reportedPaise: 50_000, ownerConfirmedPaise: 0 } });
+      expect(dashboard.claims[0].status).toBe("reported");
+    });
+    expect(await progress()).toBe(50_000);
+    expect((await claims.dashboard(wishlist.id, "owner-a")).revision).toBe(2);
+  });
   it("stores an unverified declaration, never an automatic receipt", async () => {
     const input = report(); const receipt = await claims.report(wishlist.slug, input);
     expect(receipt.status).toBe("reported");

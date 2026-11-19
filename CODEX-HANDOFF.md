@@ -7,6 +7,13 @@ No real credentials, payment addresses or customer data belong in this document.
 
 Private repository: https://github.com/hemanthshaw1999/wedding-dream-wishlist
 
+Latest verified local increment: smoother signup/verification/sign-in and recovery,
+safe owner return navigation, responsive account screens, confirmation dialogs and
+duplicate-submission protection. Owner reports use a single consistent SQL snapshot
+with revision-aware UI; multi-query wishlist/owner-page reads use repeatable-read
+snapshots. **131 unit/integration tests and 20 desktop/mobile browser cases passed**,
+plus lint/type-check/optimized build. These checks do not replace the release gates below.
+
 ## Copy-paste task for Codex
 
 ```text

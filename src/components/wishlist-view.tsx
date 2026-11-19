@@ -12,7 +12,7 @@ export function WishlistView({ wishlist, preview = false }: { wishlist: PublicWi
       <header className="hero">
         <p className="eyebrow">{preview ? "Owner preview - not a guest access grant" : "A little future, together"}</p>
         <span className="ornament" aria-hidden="true">*</span>
-        <h1>{wishlist.displayNames}</h1>
+        {preview ? <><h2>Guest page preview</h2><p className="preview-names">{wishlist.displayNames}</p></> : <h1>{wishlist.displayNames}</h1>}
         {weddingDate && <p className="date">{weddingDate}</p>}
         <p className="story">{wishlist.story || "Thank you for sharing in our next chapter. Your presence is enough."}</p>
         <span className="pill">Availability: {wishlist.availability}</span>

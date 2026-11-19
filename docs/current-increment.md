@@ -1,4 +1,4 @@
-# Current increment: PostgreSQL, HTTPS identity and private email delivery preparation
+# Current increment: smoother onboarding and consistent interactions
 
 This supersedes checkpoint-1 statements that auth/reports were absent or that a shared fictional account could be entered. The release target remains a hosted responsive wedding app, **not yet production ready**.
 
@@ -108,7 +108,7 @@ All application mutations still require exact Host/Origin, JSON and a bounded re
 
 Receipt fields: `id,status,amountPaise,currency,goalTitle,recipientLabel,tokenExpiresAt,mode:"demo"`. Owner list additionally includes optional private guest fields, duplicate-reference warning, version and created UTC. Unknown fields/invalid amount: 422; unavailable/stale/key-conflict: 409; no auth: 401; cross-owner/nonexistent: 404; origin denied: 403; rate limit: 429 with Retry-After.
 
-Private URLs use `/gift-status#<random-key>`: fragment not sent in the server URL. The page reads it only when requested, removes it from the visible URL and uses POST for lookup. No service worker, analytics or remote QR service. Anyone possessing the key can view that one receipt; it must stay private.
+Private URLs use `/gift-status#<random-key>`: fragment not sent in the server URL. The page reads it only when requested, removes it from the visible URL and uses POST for lookup. The current key is retained in this tab's session storage for reloads; the forget action clears it and matching per-goal retry copies, not the server report or original link. No service worker, analytics or remote QR service. Anyone possessing the key can view that one receipt; it must stay private.
 
 ## Current requirements-to-tests delta
 
@@ -225,6 +225,67 @@ E2E role's goal permission, verify real HTTP 503/redacted output, restore permis
 observe HTTP 200 again. Local mocked email verifies least-privilege delivery, pool cleanup
 and fail-closed configuration. No real email, hosted bundle, scheduler, public URL or
 payment activation is claimed.
+
+## Onboarding, customer walkthrough and interaction consistency increment
+
+Reproduced the reported signup friction with a failing browser regression: successful
+registration kept showing the registration form, with verification instructions far below
+the main action. Added a dedicated verification step, a prominent continue-to-sign-in
+button, retained email, cleared passwords, verification resend and actionable link-error
+feedback. Verification is still mandatory; no automatic verification or public mailbox
+endpoint was introduced. Resend keeps the maintained library's generic anonymous response
+for missing, verified and eligible accounts.
+
+The engineering/product/design pass was a heuristic walkthrough of implemented journeys
+and the user's reported confusion, not customer interviews. The responsive onboarding
+layout puts the form first on small screens, reduces technical copy and exposes private
+mailbox instructions on demand. Password controls are shared with recovery. Added owner
+section navigation, a single main heading, field-error associations and modal focus
+restoration. Removed the homepage's unconditional link to a potentially absent seed.
+Close/archive and confirmation reversal now require an explicit confirmation dialog.
+
+Sign-in returns to the requested owner wishlist using only a validated exact internal UUID
+path. Account changes reset old workspace state; the pending account does not see another
+account's saved-list props. Same-account inline reauthentication preserves an unsaved draft,
+while deliberate sign-out clears it. A delayed sign-out server refresh is awaited before
+showing an editable sign-in form, preventing newly typed credentials from being erased.
+Sign-out no longer competes for the shared email/password attempt budgets; origin, bounded
+JSON, session revocation and maintained-library controls remain enforced.
+
+A shared synchronous request lock prevents duplicate in-flight submissions before a React
+busy-state render, without automatically retrying mutations. Report review clears the reason
+and acknowledgement after each successful write. A saved write followed by a failed refresh
+is explicitly distinguished from an unknown write outcome; another review requires refresh.
+Unknown draft-save outcomes direct the owner to refresh saved wishlists before changing the
+slug. Private status checks clear stale receipts on failure, survive reload, and ignore an
+old response if a different private link was opened while checking. Goal-history responses
+are scoped to the requested wishlist version.
+
+The owner report dashboard now obtains ownership, page rows, filtered count, all totals and
+a monotonic contribution-version sum in **one SQL statement, previously eight queries**.
+The client uses this revision to reject a late older default-page snapshot and require
+refresh when a filtered view is known stale. Multi-query owner/public projections use
+read-only repeatable-read snapshots; the owner management page shares one snapshot across
+wishlist progress and report totals. Create/state-change responses are projected inside
+their write transaction, not reread after releasing the mutation lock.
+
+Existing parent-row locking, expected versions, unique constraints, exact-paise ledger
+checks and private-key idempotency remain authoritative across tabs/processes. The new
+read guarantees are point-in-time consistency, not live push updates or a claim that every
+operation uses serializable isolation. Actual hosted latency, throughput and resilience
+under sustained load have not been established.
+
+Actual final Node 24 checks: **131/131 unit/integration tests across 11 files**,
+**20/20 browser cases (10 journeys each on desktop Chromium and Pixel 7 emulation)**,
+lint, TypeScript and optimized build passed. Database tests were also completed serially
+(`npm test -- --no-file-parallelism`) after a parallel run hit temporary-database cleanup
+timeouts on this shared machine. No runtime timeouts or limits were loosened.
+Browser regressions force duplicate submits, delayed old responses, a delayed logout
+refresh, a saved-review/failed-refresh split, cross-account refresh, missing recovery tokens,
+private-key reload/forget and changed-link races. They also exhaust isolated authentication
+budgets to verify that sign-in is limited while legitimate logout still revokes the session.
+Inspected desktop/mobile screenshots; no physical-device, screen-reader, independent
+customer, full-product security or hosted load assessment is claimed.
 
 ## Remaining release blockers / uncovered risks
 
