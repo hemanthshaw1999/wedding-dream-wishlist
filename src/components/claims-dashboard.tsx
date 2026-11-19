@@ -8,7 +8,7 @@ import { requestJson } from "./client-api";
 import { ConfirmAction } from "./confirm-action";
 import { useRequestLock } from "./use-request-lock";
 
-export function ClaimsDashboard({ wishlistId, initial }: { wishlistId: string; initial: ClaimDashboard }) {
+export function ClaimsDashboard({ wishlistId, initial, live = false }: { wishlistId: string; initial: ClaimDashboard; live?: boolean }) {
   const router = useRouter();
   const [loaded, setLoaded] = useState<ClaimDashboard | null>(null);
   const [filter, setFilter] = useState("all");
@@ -54,14 +54,14 @@ export function ClaimsDashboard({ wishlistId, initial }: { wishlistId: string; i
   }
   return <section className="panel claims-dashboard" aria-labelledby="reports-title">
     <h2 id="reports-title">Guest reports and manual confirmation</h2>
-    <p><strong>Demo - no real money.</strong> Never confirm from a screenshot or reference alone. For live direct UPI, compare against your own bank records. The platform cannot verify a bank transfer or refund money it never handled.</p>
+    <p><strong>{live ? "Live direct UPI - manual confirmation only." : "Demo - no real money."}</strong> Never confirm from a screenshot or reference alone. For live direct UPI, compare against your own bank records. The platform cannot verify a bank transfer or refund money it never handled.</p>
     <dl className="totals-grid">
       <div><dt>Reported, not confirmed</dt><dd>{formatINR(data.totals.reportedPaise)}</dd></div>
       <div><dt>Needs review</dt><dd>{formatINR(data.totals.needsReviewPaise)}</dd></div>
-      <div><dt>Owner-confirmed demo reports</dt><dd>{formatINR(data.totals.ownerConfirmedPaise)}</dd></div>
+      <div><dt>{live ? "Owner-confirmed reports" : "Owner-confirmed demo reports"}</dt><dd>{formatINR(data.totals.ownerConfirmedPaise)}</dd></div>
       <div><dt>Rejected reports</dt><dd>{formatINR(data.totals.rejectedPaise)}</dd></div>
     </dl>
-    <p>No provider-confirmed, settled or refunded funds exist in this demo.</p>
+    <p>No provider-confirmed, settled or refunded funds exist{live ? "; the app never handles the money" : " in this demo"}.</p>
     <label htmlFor="report-filter">Filter reports</label><select id="report-filter" value={filter} disabled={busy} onChange={(e) => refresh(e.target.value, 1)}>{["all", "reported", "needs_review", "owner_confirmed", "rejected"].map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</select>
     <div className="actions"><button className="button secondary" disabled={busy} onClick={() => refresh()}>Refresh reports</button><a href={`/api/owner/wishlists/${wishlistId}/reports/export`}>Export private CSV (up to 5,000 rows)</a></div>
     {(refreshFailed || changedFilteredView) && <p className="notice">These reports may be out of date. Refresh reports before reviewing another gift.</p>}
@@ -78,7 +78,7 @@ export function ClaimsDashboard({ wishlistId, initial }: { wishlistId: string; i
       <p>Reference: {claim.reference || "Not provided"}. <small>{claim.id}</small></p>
       {claim.duplicateReference && <p className="error-box">Duplicate reference: review required. References can be forged.</p>}
       <div className="actions">
-        {["reported", "needs_review"].includes(claim.status) && <><button className="button" disabled={reviewDisabled || !reason.trim() || !acknowledged} onClick={() => resolve(claim, "owner_confirmed")}>Confirm demo report</button><button className="button secondary" disabled={reviewDisabled || !reason.trim()} onClick={() => resolve(claim, "rejected")}>Reject report</button></>}
+        {["reported", "needs_review"].includes(claim.status) && <><button className="button" disabled={reviewDisabled || !reason.trim() || !acknowledged} onClick={() => resolve(claim, "owner_confirmed")}>{claim.mode === "upi" ? "Confirm report" : "Confirm demo report"}</button><button className="button secondary" disabled={reviewDisabled || !reason.trim()} onClick={() => resolve(claim, "rejected")}>Reject report</button></>}
         {claim.status !== "needs_review" && <button className="button secondary" disabled={reviewDisabled || !reason.trim()} onClick={() => {
           if (claim.status === "owner_confirmed") { setError(""); setConfirmClaim(claim); }
           else void resolve(claim, "needs_review");
