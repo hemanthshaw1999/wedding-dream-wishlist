@@ -5,7 +5,8 @@ This handoff supplies placeholders and expectations; it does not certify unfinis
 Configuration alone cannot enable real UPI, implement account privacy workflows or deploy a worker.
 No real credentials, payment addresses or customer data belong in this document.
 
-Private repository: https://github.com/hemanthshaw1999/wedding-dream-wishlist
+Public source repository: https://github.com/hemanthshaw1999/wedding-dream-wishlist
+The owner authorized public source visibility, not public application deployment or real payments.
 
 Latest verified local increment: smoother signup/verification/sign-in and recovery,
 safe owner return navigation, responsive account screens, confirmation dialogs and
@@ -21,7 +22,8 @@ Read CODEX-HANDOFF.md, README.md, docs/current-increment.md and relevant source 
 Complete the wedding wishlist production v1, not just its deployment configuration.
 Use the existing Next.js/TypeScript, PostgreSQL and self-hosted Better Auth architecture.
 Keep working through the implementation gaps below with small, tested commits.
-Keep this personal repository private; do not use workplace accounts, code or credentials.
+This personal repository is public: never commit secrets or customer data.
+Do not use workplace accounts, code or credentials.
 
 Use placeholders only for operator-supplied configuration and documented pending decisions.
 Do not replace business logic, tests, authentication, payment checks or error handling with stubs.

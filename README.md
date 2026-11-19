@@ -2,6 +2,8 @@
 
 **Demo - no real money. Use synthetic data only. This is not a production-ready or publicly deployed product.**
 
+**Public source:** https://github.com/hemanthshaw1999/wedding-dream-wishlist. Public repository visibility does not deploy the application or enable real email/payments. Keep credentials, databases, private links and customer data out of Git.
+
 **Production/Codex handoff:** [CODEX-HANDOFF.md](CODEX-HANDOFF.md) contains the implementation backlog, per-placeholder expectations and release checks. [.env.production.example](.env.production.example) contains non-working configuration placeholders with separate web/worker/migration scopes. Real values belong in approved secret stores; configuration alone does not complete missing features.
 
 **Current increment:** real **PostgreSQL 18.7** persistence, restricted runtime role, concurrent/idempotent gift reports, audited confirmation/reversal and tested native backup/restore. Self-hosted **Better Auth 1.7.21 (MIT)** now also supports HTTPS-only production configuration and an encrypted, leased authentication-email queue. Local delivery remains a private fictional mailbox; the Resend adapter has only used a mocked transport, never real email. **See `docs/current-increment.md` for current results and launch blockers.**
