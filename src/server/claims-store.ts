@@ -3,7 +3,7 @@ import type { Database } from "./database.ts";
 import { AppError } from "../lib/errors.ts";
 import { assertClaimTransition } from "../lib/claims.ts";
 import type { ClaimDashboard, ClaimReceipt, ClaimStatus, NewClaim, OwnerClaim } from "../lib/claims.ts";
-import { liveUpiApproved } from "./config.ts";
+import { isProductionDeployment, liveUpiApproved } from "./config.ts";
 import { integer, WishlistStore } from "./store.ts";
 
 type ClaimRow = {
@@ -62,6 +62,9 @@ export class ClaimsStore {
         else if (wishlist.availability !== "available") throw new AppError(409, "UNAVAILABLE", "This wishlist is not accepting reports.");
         recipientVersionId = live.id;
       } else {
+        // Simulated reports belong to the local demo only; production wishlists collect
+        // reports only after the owner activates live direct-UPI instructions.
+        if (isProductionDeployment()) throw new AppError(409, "UNAVAILABLE", "This wishlist has not enabled gift reports yet.");
         if (wishlist.availability !== "available") throw new AppError(409, "UNAVAILABLE", "This wishlist is not accepting demo reports.");
         const recipient = wishlist.recipientSnapshot;
         if (!recipient || recipient.id !== input.recipientSnapshotId) throw new AppError(409, "STALE_RECIPIENT", "Recipient instructions changed. Refresh and review before submitting.");
