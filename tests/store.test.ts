@@ -36,7 +36,7 @@ describe("PostgreSQL durability and tenant boundaries", () => {
   it("publishes only the anonymous allowlist", async () => {
     const value = await create(); await store.transition(value.id, "owner-a", "published", value.version);
     const guest = await store.getPublic(value.slug);
-    expect(Object.keys(guest).sort()).toEqual(["availability", "currency", "displayNames", "expiresAt", "goals", "liveRecipient", "paymentMode", "recipientSnapshot", "slug", "story", "weddingDate"].sort());
+    expect(Object.keys(guest).sort()).toEqual(["availability", "currency", "displayNames", "expiresAt", "goals", "liveRecipient", "paymentMode", "recipientSnapshot", "slug", "story", "supporters", "weddingDate"].sort());
     expect(JSON.stringify(guest)).not.toContain("owner-a");
     expect(guest.goals[0].confirmedPaise).toBe(0); expect(guest.paymentMode).toBe("demo");
   });

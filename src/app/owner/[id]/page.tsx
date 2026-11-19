@@ -9,6 +9,8 @@ import { applicationOrigin, requireOwner } from "@/server/http";
 import { applicationConfig } from "@/server/config";
 import { WishlistStore } from "@/server/store";
 import { ClaimsStore } from "@/server/claims-store";
+import { CashStore } from "@/server/cash-store";
+import { OwnerCash } from "@/components/owner-cash";
 import { ClaimsDashboard } from "@/components/claims-dashboard";
 import { ownerReturnPath } from "@/lib/auth-navigation";
 
@@ -17,13 +19,15 @@ export const dynamic = "force-dynamic";
 export default async function Preview({ params }: { params: Promise<{ id: string }> }) {
   let wishlist;
   let reports;
+  let cash;
   try {
     const owner = await requireOwner();
     const id = (await params).id;
-    ({ wishlist, reports } = await getDatabase().readSnapshot(async (tx) => {
+    ({ wishlist, reports, cash } = await getDatabase().readSnapshot(async (tx) => {
       const wishlist = await new WishlistStore(tx).getOwner(id, owner);
       const reports = await new ClaimsStore(tx).dashboard(id, owner);
-      return { wishlist, reports };
+      const cash = await new CashStore(tx).list(id, owner);
+      return { wishlist, reports, cash };
     }));
   } catch (error) {
     if (error instanceof AppError && error.status === 404) notFound();
@@ -33,5 +37,5 @@ export default async function Preview({ params }: { params: Promise<{ id: string
     }
     throw error;
   }
-  return <><header className="page-title"><Link href="/owner">Back to workspace</Link><p className="eyebrow">Your private management view</p><h1>{wishlist.displayNames}</h1><nav className="actions section-nav" aria-label="Wishlist sections"><a href="#publication">Publish and share</a><a href="#payment-setup">Payment setup</a><a href="#manage-goals-title">Manage goals</a><a href="#reports-title">Guest reports</a><a href="#guest-preview">Guest preview</a></nav></header><OwnerControls wishlist={wishlist} origin={applicationOrigin()} production={applicationConfig().mode === "production"} /><OwnerRecipient wishlist={wishlist} production={applicationConfig().mode === "production"} /><ClaimsDashboard wishlistId={wishlist.id} initial={reports} live={wishlist.paymentMode === "upi"} production={applicationConfig().mode === "production"} /><section id="guest-preview" aria-label="Guest preview"><WishlistView wishlist={wishlist} preview /></section></>;
+  return <><header className="page-title"><Link href="/owner">Back to workspace</Link><p className="eyebrow">Your private management view</p><h1>{wishlist.displayNames}</h1><nav className="actions section-nav" aria-label="Wishlist sections"><a href="#publication">Publish and share</a><a href="#payment-setup">Payment setup</a><a href="#manage-goals-title">Manage goals</a><a href="#reports-title">Guest reports</a><a href="#cash-gifts">Cash gifts</a><a href="#guest-preview">Guest preview</a></nav></header><OwnerControls wishlist={wishlist} origin={applicationOrigin()} production={applicationConfig().mode === "production"} /><OwnerRecipient wishlist={wishlist} production={applicationConfig().mode === "production"} /><OwnerCash wishlist={wishlist} initial={cash} /><ClaimsDashboard wishlistId={wishlist.id} initial={reports} live={wishlist.paymentMode === "upi"} production={applicationConfig().mode === "production"} /><section id="guest-preview" aria-label="Guest preview"><WishlistView wishlist={wishlist} preview /></section></>;
 }

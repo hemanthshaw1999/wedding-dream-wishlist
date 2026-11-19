@@ -40,7 +40,8 @@ export class WishlistStore {
 
   private async project(row: WishlistRow, guestSafe = false): Promise<PublicWishlist> {
     const goals = await this.db.all<GoalRow>(`SELECT g.id,g.title,g.description,g.target_paise,g.archived_at,
-      COALESCE(SUM(e.confirmed_delta_paise),0) AS confirmed_paise FROM goals g
+      COALESCE(SUM(e.confirmed_delta_paise),0) + (SELECT COALESCE(SUM(k.amount_paise),0) FROM cash_gifts k
+        WHERE k.goal_id=g.id AND k.voided_at IS NULL) AS confirmed_paise FROM goals g
       LEFT JOIN contributions c ON c.goal_id=g.id LEFT JOIN claim_events e ON e.contribution_id=c.id
       WHERE g.wishlist_id=$1 GROUP BY g.id ORDER BY g.position`, [row.id]);
     const recipient = await this.db.get<{ id: string; label: string }>("SELECT id,label FROM recipient_snapshots WHERE wishlist_id=$1", [row.id]);
@@ -58,6 +59,10 @@ export class WishlistStore {
     if (row.payment_mode === "upi" && !live) throw new Error("Live recipient binding is missing.");
     // Deployment-off gate: guests never see payable instructions for existing live rows
     // while the operator has not recorded owner approval for live direct UPI.
+    // Only guest opt-ins the couple has confirmed. Cash gifts and unchecked reports never appear here.
+    const supporters = await this.db.all<{ name: string; amount: string; goal_title: string }>(`SELECT trim(c.guest_name) AS name,
+      c.amount_paise::text AS amount,g.title AS goal_title FROM contributions c JOIN goals g ON g.id=c.goal_id
+      WHERE c.wishlist_id=$1 AND c.status='owner_confirmed' AND c.public_display ORDER BY c.amount_paise DESC,c.created_at LIMIT 25`, [row.id]);
     const showLive = live && (!guestSafe || liveUpiApproved());
     return {
       slug: row.slug, displayNames: row.display_names, story: row.story,
@@ -66,6 +71,7 @@ export class WishlistStore {
       currency: "INR", paymentMode: row.payment_mode,
       recipientSnapshot: recipient ? { id: recipient.id, label: recipient.label, mode: "demo" } : null,
       liveRecipient: showLive ? { id: live.id, version: live.version, upiId: live.upi_id, label: live.label } : null,
+      supporters: supporters.map((item) => ({ name: item.name, amountPaise: integer(item.amount), goalTitle: item.goal_title })),
       goals: goals.map((goal) => ({
         id: goal.id, title: goal.title, description: goal.description,
         targetPaise: integer(goal.target_paise), confirmedPaise: integer(goal.confirmed_paise), archivedAt: goal.archived_at,

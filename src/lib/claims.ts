@@ -4,14 +4,14 @@ import { parseINR } from "./money.ts";
 export type ClaimStatus = "reported" | "needs_review" | "owner_confirmed" | "rejected";
 export type NewClaim = {
   goalId: string; recipientSnapshotId: string; recipientVersionId: string; amountPaise: number; currency: "INR";
-  guestName: string; guestMessage: string; reference: string; token: string;
+  guestName: string; guestMessage: string; reference: string; token: string; publicDisplay: boolean;
 };
 export type ClaimReceipt = {
   id: string; status: ClaimStatus; amountPaise: number; currency: "INR";
   goalTitle: string; recipientLabel: string; tokenExpiresAt: string; mode: "demo" | "upi";
 };
 export type OwnerClaim = ClaimReceipt & {
-  guestName: string; guestMessage: string; reference: string; duplicateReference: boolean;
+  guestName: string; guestMessage: string; publicDisplay?: boolean; reference: string; duplicateReference: boolean;
   version: number; createdAt: string;
 };
 export type ClaimDashboard = {
@@ -28,7 +28,7 @@ function bounded(value: unknown, limit: number, label: string): string {
 export function validateClaim(input: unknown): NewClaim {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new AppError(422, "VALIDATION", "Expected a report object.");
   const data = input as Record<string, unknown>;
-  if (Object.keys(data).some((key) => !["goalId", "recipientSnapshotId", "recipientVersionId", "amount", "currency", "guestName", "guestMessage", "reference", "token"].includes(key))) {
+  if (Object.keys(data).some((key) => !["goalId", "recipientSnapshotId", "recipientVersionId", "amount", "currency", "guestName", "guestMessage", "reference", "token", "publicDisplay"].includes(key))) {
     throw new AppError(422, "VALIDATION", "Unknown report fields are not accepted.");
   }
   if (data.currency !== "INR") throw new AppError(422, "CURRENCY_MISMATCH", "Only INR is supported.");
@@ -41,9 +41,13 @@ export function validateClaim(input: unknown): NewClaim {
   if (!goalId || (!recipientSnapshotId) === (!recipientVersionId)) {
     throw new AppError(422, "VALIDATION", "A goal and exactly one recipient instruction reference are required.");
   }
+  if (data.publicDisplay !== undefined && typeof data.publicDisplay !== "boolean") throw new AppError(422, "VALIDATION", "Check the public display choice.");
+  const publicDisplay = data.publicDisplay === true;
+  const guestName = bounded(data.guestName, 100, "name");
+  if (publicDisplay && !guestName) throw new AppError(422, "VALIDATION", "Add your name to appear on the supporters list, or untick that option.");
   return {
-    goalId, recipientSnapshotId, recipientVersionId, amountPaise, currency: "INR", token: data.token,
-    guestName: bounded(data.guestName, 100, "name"),
+    publicDisplay, goalId, recipientSnapshotId, recipientVersionId, amountPaise, currency: "INR", token: data.token,
+    guestName,
     guestMessage: bounded(data.guestMessage, 500, "message"),
     reference: bounded(data.reference, 64, "reference").toUpperCase()
   };

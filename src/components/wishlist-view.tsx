@@ -51,12 +51,13 @@ export function WishlistView({ wishlist, preview = false }: { wishlist: PublicWi
               <div className={`goal-art art-${index % 3}`} aria-hidden="true"><span>{String(index + 1).padStart(2, "0")}</span></div>
               <div className="goal-content">
                 <h3 id={`goal-${goal.id}`}>{goal.title}</h3>
+                {!goal.archivedAt && goal.targetPaise > 0 && goal.confirmedPaise >= goal.targetPaise && <p className="pill" role="status">Goal reached. Thank you to everyone who contributed.</p>}
                 {goal.archivedAt && <p className="pill">Archived goal - history and confirmed progress retained</p>}
                 <p className="story">{goal.description || "A meaningful part of our life together."}</p>
                 <p className="goal-amount">{formatINR(goal.targetPaise)} <span>target</span></p>
                 <label className="progress-label" htmlFor={`progress-${goal.id}`}>Confirmed progress: {formatINR(goal.confirmedPaise)}</label>
                 <progress id={`progress-${goal.id}`} value={Math.min(goal.confirmedPaise, goal.targetPaise)} max={goal.targetPaise} />
-                <p className="muted">{wishlist.paymentMode === "upi" ? "Owner-confirmed reports only—not bank/provider verified. Pending reports never count. Overfunding is allowed and shown in full." : (production ? "Owner-confirmed reports only - not bank/provider verified. Pending reports never count." : "Owner-confirmed demo reports only—not bank/provider verified. Pending reports never count. Simulated overfunding is shown in full; the live funding policy remains undecided.")}</p>
+                <p className="muted">{wishlist.paymentMode === "upi" ? "Counts owner-confirmed reports and cash gifts the couple has recorded—not bank/provider verified. Pending reports never count. Overfunding is allowed and shown in full." : (production ? "Counts owner-confirmed reports and cash gifts the couple has recorded - not bank/provider verified. Pending reports never count." : "Owner-confirmed demo reports only—not bank/provider verified. Pending reports never count. Simulated overfunding is shown in full; the live funding policy remains undecided.")}</p>
                 {goal.targetHistory.length > 0 && <details>
                   <summary>Target changes (latest 20)</summary>
                   <ol>{goal.targetHistory.map((change) => <li key={change.version}>
@@ -69,7 +70,12 @@ export function WishlistView({ wishlist, preview = false }: { wishlist: PublicWi
           ))}
         </div>
       </section>
-      <p className="privacy-note">{wishlist.paymentMode === "upi" || production ? "Guest names, messages, references and individual gift amounts are private. Public progress includes only owner-confirmed reports, never unverified declarations." : en.privacy}</p>
+      {wishlist.supporters.length > 0 && <section className="panel" aria-labelledby="supporters-title">
+        <h2 id="supporters-title">Top supporters</h2>
+        <p className="muted">Only guests who chose to show their name and amount, after the couple confirmed their gift. Everyone else stays private but still counts toward progress.</p>
+        <ol>{wishlist.supporters.map((item, index) => <li key={index}><strong>{item.name}</strong> - {formatINR(item.amountPaise)} for {item.goalTitle}</li>)}</ol>
+      </section>}
+      <p className="privacy-note">{wishlist.paymentMode === "upi" || production ? "Guest names, messages, references and individual gift amounts are private unless a guest chose to show their name and amount on the supporters list. Public progress includes only owner-confirmed reports, never unverified declarations." : en.privacy}</p>
     </article>
   );
 }

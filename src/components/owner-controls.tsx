@@ -24,6 +24,11 @@ export function OwnerControls({ wishlist, origin, production = false }: { wishli
   const [confirmState, setConfirmState] = useState<"closed" | "archived" | null>(null);
   const linkRef = useRef<HTMLInputElement>(null);
   const guestUrl = `${origin}/w/${current.slug}`;
+  const reached = current.goals.filter((goal) => !goal.archivedAt && goal.targetPaise > 0 && goal.confirmedPaise >= goal.targetPaise);
+  const shareText = reached.length > 0
+    ? `Good news: our wedding goal "${reached[0].title}" has been reached. Thank you for being part of it. ${guestUrl}`
+    : `Here is our wedding wishlist. Pick a goal and give any amount that suits you. ${guestUrl}`;
+  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
   const shareable = current.visibility !== "private" && ["published", "paused", "closed"].includes(current.state);
   const actions: Record<WishlistState, { state: WishlistState; label: string }[]> = {
     draft: [{ state: "published", label: "Publish after preview" }, { state: "closed", label: "Close wishlist" }],
@@ -96,9 +101,10 @@ export function OwnerControls({ wishlist, origin, production = false }: { wishli
         <div className="share-panel">
           <label htmlFor="share-link">Guest wishlist link (no owner token)</label>
           <input ref={linkRef} id="share-link" value={guestUrl} readOnly onFocus={(event) => event.target.select()} />
-          <p className="muted">{production ? "Share this link with guests. It opens the wishlist page, not a payment app." : en.localShare}</p>
+          <p className="muted">{production ? "Share this link with guests. It opens the wishlist page, not a payment app. The WhatsApp button opens WhatsApp with a message for you to send yourself; nothing is sent automatically." : en.localShare}</p>
           <div className="actions">
             <button className="button secondary" onClick={copy}>Copy link</button>
+            <a className="button secondary" href={whatsappUrl} target="_blank" rel="noopener noreferrer">{reached.length > 0 ? "Share goal update on WhatsApp" : "Share on WhatsApp"}</a>
             <button className="button secondary" onClick={createQr}>Create link QR</button>
             <Link href={`/w/${current.slug}`}>Open guest view</Link>
           </div>

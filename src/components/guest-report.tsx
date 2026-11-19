@@ -12,6 +12,7 @@ import { useRequestLock } from "./use-request-lock";
 export function GuestReport({ wishlist, goal }: { wishlist: PublicWishlist; goal: Goal }) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("500");
+  const [showPublicly, setShowPublicly] = useState(false);
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
   const [reference, setReference] = useState("");
@@ -57,7 +58,7 @@ export function GuestReport({ wishlist, goal }: { wishlist: PublicWishlist; goal
       setPrivateUrl(`${window.location.origin}/gift-status#${token}`);
       const result = await requestJson<ClaimReceipt>(`/api/public/wishlists/${wishlist.slug}/reports`, "POST", {
         goalId: goal.id, ...(live ? { recipientVersionId: live.id } : { recipientSnapshotId: recipient?.id }), amount, currency: "INR",
-        guestName: name, guestMessage: message, reference, token
+        guestName: name, guestMessage: message, reference, token, publicDisplay: showPublicly && name.trim().length > 0
       });
       setReceipt(result);
     } catch (error) { setError(error instanceof Error ? error.message : "The outcome is unknown. Use the private status link before repeating a report."); }
@@ -76,7 +77,8 @@ export function GuestReport({ wishlist, goal }: { wishlist: PublicWishlist; goal
         <div className="actions">{["500", "2000", "5000"].map((preset) => <button key={preset} type="button" className="button secondary" aria-pressed={amount === preset} onClick={() => setAmount(preset)}>{formatINR(Number(preset) * 100)}</button>)}</div>
         <input id={field("amount")} required inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
         <small>Custom amount: INR 1 to INR 1,00,000. No minimum-gift expectation; gifting is optional.</small>
-        <label htmlFor={field("name")}>Guest name (optional, private)</label><input id={field("name")} maxLength={100} value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
+        <label htmlFor={field("name")}>Your name (optional). Only the couple sees it unless you tick the option below. Leave blank to give anonymously in this app; your UPI app may still show your details to the couple.</label><input id={field("name")} maxLength={100} value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
+        <label className="checkbox-label"><input type="checkbox" checked={showPublicly} onChange={(e) => setShowPublicly(e.target.checked)} /> Show my name and amount to everyone who views this wishlist, after the couple confirms my gift. Needs a name above. Leave unticked to stay private.</label>
         <label htmlFor={field("message")}>Message (optional, private)</label><textarea id={field("message")} maxLength={500} value={message} onChange={(e) => setMessage(e.target.value)} />
         <label htmlFor={field("reference")}>{live ? "UPI reference (optional, not proof)" : "Fictional reference (optional, not proof)"}</label><input id={field("reference")} maxLength={64} value={reference} onChange={(e) => setReference(e.target.value)} autoComplete="off" />
         <div className="actions"><button className="button">{busy ? "Preparing..." : live ? "Review gift report" : "Review demo gift"}</button></div>

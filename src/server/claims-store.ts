@@ -8,12 +8,12 @@ import { integer, WishlistStore } from "./store.ts";
 
 type ClaimRow = {
   id: string; status: ClaimStatus; amount_paise: string; goal_title: string; recipient_label: string;
-  token_expires_at: string; guest_name: string; guest_message: string; reference: string;
+  token_expires_at: string; guest_name: string; guest_message: string; public_display?: boolean; reference: string;
   version: number; created_at: string; duplicate_reference: number; request_hash: string; wishlist_id: string;
   mode: "demo" | "upi";
 };
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
-const selection = `SELECT c.id,c.status,c.amount_paise::text,c.token_expires_at,c.guest_name,c.guest_message,
+const selection = `SELECT c.id,c.status,c.amount_paise::text,c.token_expires_at,c.guest_name,c.guest_message,c.public_display,
   c.reference,c.version,c.created_at,c.request_hash,c.wishlist_id,g.title AS goal_title,
   COALESCE(r.label,rv.label) AS recipient_label,
   CASE WHEN c.recipient_version_id IS NOT NULL THEN 'upi' ELSE 'demo' END AS mode,
@@ -27,7 +27,7 @@ function receipt(row: ClaimRow): ClaimReceipt {
     goalTitle: row.goal_title, recipientLabel: row.recipient_label, tokenExpiresAt: row.token_expires_at, mode: row.mode };
 }
 function ownerClaim(row: ClaimRow): OwnerClaim {
-  return { ...receipt(row), guestName: row.guest_name, guestMessage: row.guest_message,
+  return { ...receipt(row), guestName: row.guest_name, guestMessage: row.guest_message, publicDisplay: Boolean(row.public_display),
     reference: row.reference, duplicateReference: Boolean(row.duplicate_reference), version: row.version, createdAt: row.created_at };
 }
 
@@ -81,9 +81,9 @@ export class ClaimsStore {
       const now = new Date().toISOString();
       const expiry = new Date(Date.now() + 7 * 86_400_000).toISOString();
       await tx.run(`INSERT INTO contributions(id,wishlist_id,goal_id,recipient_snapshot_id,recipient_version_id,
-        amount_paise,currency,guest_name,guest_message,reference,status,token_hash,request_hash,token_expires_at,version,created_at,updated_at)
-        VALUES($1,$2,$3,$4,$5,$6,'INR',$7,$8,$9,$10,$11,$12,$13,1,$14,$14)`,
-        [id, source.id, input.goalId, recipientSnapshotId, recipientVersionId, input.amountPaise, input.guestName, input.guestMessage, input.reference, status, tokenHash, requestHash, expiry, now]);
+        amount_paise,currency,guest_name,guest_message,reference,status,token_hash,request_hash,token_expires_at,version,created_at,updated_at,public_display)
+        VALUES($1,$2,$3,$4,$5,$6,'INR',$7,$8,$9,$10,$11,$12,$13,1,$14,$14,$15)`,
+        [id, source.id, input.goalId, recipientSnapshotId, recipientVersionId, input.amountPaise, input.guestName, input.guestMessage, input.reference, status, tokenHash, requestHash, expiry, now, input.publicDisplay]);
       await tx.run("INSERT INTO claim_events VALUES($1,$2,NULL,NULL,$3,0,$4,$5)",
         [randomUUID(), id, status, late ? "Reported after the collection paused; the couple must verify bank records carefully."
           : duplicate ? "Duplicate reference; review required. Reference is not proof." : "Guest declaration only; not verified.", now]);

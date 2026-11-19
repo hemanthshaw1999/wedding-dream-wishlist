@@ -45,7 +45,9 @@ export type PublicWishlist = {
   recipientSnapshot: { id: string; label: string; mode: "demo" } | null;
   liveRecipient: LiveRecipient | null;
   goals: Goal[];
+  supporters: Supporter[];
 };
+export type Supporter = { name: string; amountPaise: number; goalTitle: string };
 export type OwnerWishlist = Omit<PublicWishlist, "goals"> & {
   id: string;
   state: WishlistState;

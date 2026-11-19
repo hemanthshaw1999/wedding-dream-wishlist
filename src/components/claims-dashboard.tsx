@@ -72,7 +72,7 @@ export function ClaimsDashboard({ wishlistId, initial, live = false, production 
     {error && !confirmClaim && <p role="alert" className="error-box">{error}</p>}<p role="status">{message}</p>
     {!data.claims.length && <p>No reports match this filter. Reported gifts will appear here privately.</p>}
     <ul className="report-list">{data.claims.map((claim) => <li key={claim.id}>
-      <h3>{formatINR(claim.amountPaise)} - {claim.guestName || "Name not provided"}</h3>
+      <h3>{formatINR(claim.amountPaise)} - {claim.guestName || "Name not provided"}{claim.publicDisplay ? " (chose to show publicly once confirmed)" : ""}</h3>
       <p>{claim.goalTitle} / {claim.status.replaceAll("_", " ")}</p>
       <p className="story">{claim.guestMessage || "No message."}</p>
       <p>Reference: {claim.reference || "Not provided"}. <small>{claim.id}</small></p>
