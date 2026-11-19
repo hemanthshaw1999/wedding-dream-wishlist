@@ -2,9 +2,11 @@ import type { PublicWishlist } from "@/lib/wishlist";
 import { formatINR } from "@/lib/money";
 import { en } from "@/lib/strings";
 import { GuestReport } from "./guest-report";
+import { applicationConfig } from "@/server/config";
 
 export function WishlistView({ wishlist, preview = false }: { wishlist: PublicWishlist; preview?: boolean }) {
   const paymentsOff = wishlist.paymentMode === "upi" && !wishlist.liveRecipient;
+  const production = applicationConfig().mode === "production";
   const weddingDate = wishlist.weddingDate
     ? new Intl.DateTimeFormat("en-IN", { dateStyle: "long", timeZone: "UTC" }).format(new Date(`${wishlist.weddingDate}T00:00:00Z`))
     : null;
@@ -26,6 +28,9 @@ export function WishlistView({ wishlist, preview = false }: { wishlist: PublicWi
           <strong>Live direct-to-couple UPI</strong>
           <p>Pay {wishlist.liveRecipient.label} at UPI ID <strong>{wishlist.liveRecipient.upiId}</strong> (instruction version {wishlist.liveRecipient.version}) using your own UPI app. Verify the recipient name your app shows before paying; this app never collects, holds or verifies money.</p>
           <p>After paying, report the amount below. A report, reference, QR or screenshot is never proof of receipt: the couple confirms only after checking their own bank records, and a reversal is not a refund.</p>
+        </> : production ? <>
+          <strong>Gifting is not enabled for this wishlist yet</strong>
+          <p>The couple has not published their UPI gift instructions. You can still share in their story and check back later.</p>
         </> : <>
           <strong>{en.demo}</strong>
           <p>{en.noPayments}</p>
@@ -51,14 +56,14 @@ export function WishlistView({ wishlist, preview = false }: { wishlist: PublicWi
                 <p className="goal-amount">{formatINR(goal.targetPaise)} <span>target</span></p>
                 <label className="progress-label" htmlFor={`progress-${goal.id}`}>Confirmed progress: {formatINR(goal.confirmedPaise)}</label>
                 <progress id={`progress-${goal.id}`} value={Math.min(goal.confirmedPaise, goal.targetPaise)} max={goal.targetPaise} />
-                <p className="muted">{wishlist.paymentMode === "upi" ? "Owner-confirmed reports only—not bank/provider verified. Pending reports never count. Overfunding is allowed and shown in full." : "Owner-confirmed demo reports only—not bank/provider verified. Pending reports never count. Simulated overfunding is shown in full; the live funding policy remains undecided."}</p>
+                <p className="muted">{wishlist.paymentMode === "upi" ? "Owner-confirmed reports only—not bank/provider verified. Pending reports never count. Overfunding is allowed and shown in full." : (production ? "Owner-confirmed reports only - not bank/provider verified. Pending reports never count." : "Owner-confirmed demo reports only—not bank/provider verified. Pending reports never count. Simulated overfunding is shown in full; the live funding policy remains undecided.")}</p>
                 {goal.targetHistory.length > 0 && <details>
                   <summary>Target changes (latest 20)</summary>
                   <ol>{goal.targetHistory.map((change) => <li key={change.version}>
                     {change.createdAt}: {formatINR(change.previousPaise)} to {formatINR(change.targetPaise)}
                   </li>)}</ol>
                 </details>}
-                {!preview && <GuestReport wishlist={wishlist} goal={goal} />}
+                {!preview && !(production && wishlist.paymentMode === "demo") && <GuestReport wishlist={wishlist} goal={goal} />}
               </div>
             </section>
           ))}

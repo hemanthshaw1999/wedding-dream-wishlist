@@ -56,7 +56,7 @@ export function OwnerWorkspace({ wishlists, session, authDemo = true, entry, ret
       clearDraft(); draftOwner.current = null;
       setAuthChange({ source: session, ownerId: null, exiting: true });
       startRefresh(() => router.refresh());
-    } catch (error) { setError(error instanceof Error ? error.message : "Could not leave the demo."); }
+    } catch (error) { setError(error instanceof Error ? error.message : "Could not sign out cleanly."); }
     finally { finish(); }
   }
   async function create(event: React.FormEvent<HTMLFormElement>) {
@@ -87,15 +87,15 @@ export function OwnerWorkspace({ wishlists, session, authDemo = true, entry, ret
 
   return (
     <>
-      <header className="page-title"><p className="eyebrow">Build a meaningful next chapter</p><h1>Your wishlist workspace</h1><p className="muted">A private place for your story, dreams and guest reports. Use fictional details only in this demo.</p></header>
+      <header className="page-title"><p className="eyebrow">Build a meaningful next chapter</p><h1>Your wishlist workspace</h1><p className="muted">A private place for your story, dreams and guest reports.{authDemo ? " Use fictional details only in this demo." : ""}</p></header>
       {error && <div ref={errorRef} tabIndex={-1} role="alert" className="error-box">{error}{!entered && <p>Your unsaved draft is kept here. Sign in to the same account to continue.</p>}</div>}
       {!entered && exiting && <p role="status">Signed out. Loading sign-in... <button type="button" className="text-button" onClick={() => window.location.reload()}>Reload sign-in</button></p>}
       {!entered && !exiting && <div className="onboarding-grid">
         <aside className="onboarding-intro">
           <p className="eyebrow">From your first idea to a shared story</p>
           <h2>Make room for what matters.</h2>
-          <ol className="journey-steps"><li><strong>Create and verify</strong><span>Use your own account. Verification protects access to your workspace.</span></li><li><strong>Start with a private draft</strong><span>Add your story and goals. Nothing is shared until you publish.</span></li><li><strong>Preview, then share</strong><span>Guests can explore without an account. Payments remain disabled.</span></li></ol>
-          <p className="muted">Demo - no real money. No bank details, screenshots or real personal information. Sessions expire after one hour.</p>
+          <ol className="journey-steps"><li><strong>Create and verify</strong><span>Use your own account. Verification protects access to your workspace.</span></li><li><strong>Start with a private draft</strong><span>Add your story and goals. Nothing is shared until you publish.</span></li><li><strong>Preview, then share</strong><span>{authDemo ? "Guests can explore without an account. Payments remain disabled." : "Guests can explore without an account. You control when gifting goes live."}</span></li></ol>
+          <p className="muted">{authDemo ? "Demo - no real money. No bank details, screenshots or real personal information. Sessions expire after one hour." : "Gift money moves directly between your guests and your own UPI account; this app never holds it. Sessions expire after one hour."}</p>
         </aside>
         <AuthPanel demo={authDemo} entry={entry} returnTo={returnTo} onSignedIn={signedIn} />
       </div>}
@@ -103,7 +103,7 @@ export function OwnerWorkspace({ wishlists, session, authDemo = true, entry, ret
         <div className="workspace-grid">
           <section className="panel" aria-labelledby="create-title">
             <h2 id="create-title">Create a wishlist</h2>
-            <p className="muted">Save a private draft first. Preview before sharing. All fields are fictional.</p>
+            <p className="muted">Save a private draft first. Preview before sharing.{authDemo ? " All fields are fictional." : ""}</p>
             <form onSubmit={create} aria-busy={busy}>
               <fieldset className="form-fields" disabled={busy || !serverSettled} aria-label="Wishlist details">
               <label htmlFor="names">Couple display names</label>
@@ -125,7 +125,7 @@ export function OwnerWorkspace({ wishlists, session, authDemo = true, entry, ret
                 <option value="public">Public - anonymous viewing allowed</option>
                 <option value="private">Private - owner preview only</option>
               </select>
-              <small>No indexing or public directory in this demo. Unlisted links are shareable, not passwords.</small>
+              <small>{authDemo ? "No indexing or public directory in this demo. Unlisted links are shareable, not passwords." : "There is no public directory. Unlisted links are shareable, not passwords."}</small>
               <h3>Your goals</h3>
               {goals.map((goal, index) => (
                 <fieldset key={index}>
@@ -150,7 +150,7 @@ export function OwnerWorkspace({ wishlists, session, authDemo = true, entry, ret
           </section>
           <aside className="panel" aria-labelledby="existing-title" aria-busy={visibleWishlists === null}>
             <h2 id="existing-title">Saved wishlists</h2>
-            {visibleWishlists === null ? <p role="status">Loading saved wishlists...</p> : !visibleWishlists.length && <p>No wishlists yet. Create your first fictional draft.</p>}
+            {visibleWishlists === null ? <p role="status">Loading saved wishlists...</p> : !visibleWishlists.length && <p>{authDemo ? "No wishlists yet. Create your first fictional draft." : "No wishlists yet. Create your first draft."}</p>}
             <ul className="wishlist-list">
               {visibleWishlists?.map((wishlist) => <li key={wishlist.id}><Link href={`/owner/${wishlist.id}`}>{wishlist.displayNames}</Link><span className="pill">{wishlist.state}</span></li>)}
             </ul>

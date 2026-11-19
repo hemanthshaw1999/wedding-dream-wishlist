@@ -12,7 +12,7 @@ import { OwnerGoals } from "./owner-goals";
 import { ConfirmAction } from "./confirm-action";
 import { useRequestLock } from "./use-request-lock";
 
-export function OwnerControls({ wishlist, origin }: { wishlist: OwnerWishlist; origin: string }) {
+export function OwnerControls({ wishlist, origin, production = false }: { wishlist: OwnerWishlist; origin: string; production?: boolean }) {
   const router = useRouter();
   const [updated, setUpdated] = useState<{ source: OwnerWishlist; value: OwnerWishlist } | null>(null);
   const current = updated && !(wishlist !== updated.source && wishlist.version >= updated.value.version) ? updated.value : wishlist;
@@ -74,14 +74,14 @@ export function OwnerControls({ wishlist, origin }: { wishlist: OwnerWishlist; o
   async function createQr() {
     try {
       setQr(await QRCode.toDataURL(guestUrl, { width: 256, margin: 3, errorCorrectionLevel: "M", color: { dark: "#372a32", light: "#ffffff" } }));
-      setMessage("Local wishlist-link QR created. This is not a payment QR.");
+      setMessage(production ? "Wishlist-link QR created. This is not a payment QR." : "Local wishlist-link QR created. This is not a payment QR.");
     } catch { setError("QR generation failed. You can still copy the wishlist link."); }
   }
   return (
     <><section id="publication" className="panel owner-controls" aria-labelledby="controls-title">
       <h2 id="controls-title">Preview and publication</h2>
       <p><strong>Current state: {current.state}.</strong> Visibility: {current.visibility}.</p>
-      <p>{en.demo} Publishing here only enables anonymous access on this computer; it does not deploy the app.</p>
+      <p>{production ? "Publishing makes this wishlist available at its guest link, subject to its visibility setting." : `${en.demo} Publishing here only enables anonymous access on this computer; it does not deploy the app.`}</p>
       {current.visibility === "private" && <p>Private wishlists remain unavailable to guests even when published.</p>}
       <div className="actions">
         {actions[current.state].map((action) => <button key={action.state} className="button secondary" disabled={busy} onClick={() => {
@@ -96,7 +96,7 @@ export function OwnerControls({ wishlist, origin }: { wishlist: OwnerWishlist; o
         <div className="share-panel">
           <label htmlFor="share-link">Guest wishlist link (no owner token)</label>
           <input ref={linkRef} id="share-link" value={guestUrl} readOnly onFocus={(event) => event.target.select()} />
-          <p className="muted">{en.localShare}</p>
+          <p className="muted">{production ? "Share this link with guests. It opens the wishlist page, not a payment app." : en.localShare}</p>
           <div className="actions">
             <button className="button secondary" onClick={copy}>Copy link</button>
             <button className="button secondary" onClick={createQr}>Create link QR</button>

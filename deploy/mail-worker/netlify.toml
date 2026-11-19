@@ -12,4 +12,4 @@
   external_node_modules = ["pg"]
 
 [functions.auth-email]
-  schedule = "*/2 * * * *"
+  schedule = "*/5 * * * *"
