@@ -75,7 +75,7 @@ export function WishlistView({ wishlist, preview = false }: { wishlist: PublicWi
         <p className="muted">Only guests who chose to show their name and amount, after the couple confirmed their gift. Everyone else stays private but still counts toward progress.</p>
         <ol>{wishlist.supporters.map((item, index) => <li key={index}><strong>{item.name}</strong> - {formatINR(item.amountPaise)} for {item.goalTitle}</li>)}</ol>
       </section>}
-      <p className="privacy-note">{wishlist.paymentMode === "upi" || production ? "Guest names, messages, references and individual gift amounts are private unless a guest chose to show their name and amount on the supporters list. Public progress includes only owner-confirmed reports, never unverified declarations." : en.privacy}</p>
+      <p className="privacy-note">{wishlist.paymentMode === "upi" || production ? "Guest names, messages, references and individual gift amounts are private unless a guest chose to show their name and amount on the supporters list. Public progress counts owner-confirmed reports and cash gifts the couple has recorded, never unverified declarations." : en.privacy}</p>
     </article>
   );
 }
