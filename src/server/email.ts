@@ -55,14 +55,22 @@ function decrypt(job: Job, key: Buffer): Envelope {
   return { from: value.from, to: value.to, subject: value.subject, text: value.text };
 }
 
-async function submit(envelope: Envelope, id: string, apiKey: string, fetcher: typeof fetch): Promise<Result> {
+export type EmailProvider = "resend-free" | "brevo-free";
+
+async function submit(envelope: Envelope, id: string, apiKey: string, fetcher: typeof fetch, provider: EmailProvider): Promise<Result> {
   let response: Response;
   try {
-    response = await fetcher("https://api.resend.com/emails", {
-      method: "POST", redirect: "error", cache: "no-store", signal: AbortSignal.timeout(10_000),
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "Idempotency-Key": `auth/${id}` },
-      body: JSON.stringify(envelope)
-    });
+    response = provider === "brevo-free"
+      ? await fetcher("https://api.brevo.com/v3/smtp/email", {
+          method: "POST", redirect: "error", cache: "no-store", signal: AbortSignal.timeout(10_000),
+          headers: { "api-key": apiKey, "Content-Type": "application/json" },
+          body: JSON.stringify({ sender: { email: envelope.from }, to: [{ email: envelope.to }], subject: envelope.subject, textContent: envelope.text })
+        })
+      : await fetcher("https://api.resend.com/emails", {
+          method: "POST", redirect: "error", cache: "no-store", signal: AbortSignal.timeout(10_000),
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "Idempotency-Key": `auth/${id}` },
+          body: JSON.stringify(envelope)
+        });
   } catch {
     return { accepted: false, retry: true, uncertain: true, errorClass: "network" };
   }
@@ -85,7 +93,10 @@ async function submit(envelope: Envelope, id: string, apiKey: string, fetcher: t
       chunks.push(value);
     }
     const body: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-    if (body && typeof body === "object" && "id" in body && typeof body.id === "string" &&
+    if (provider === "brevo-free") {
+      if (body && typeof body === "object" && "messageId" in body && typeof body.messageId === "string" &&
+          /^<[^<>\r\n]{1,200}>$/.test(body.messageId)) return { accepted: true, providerId: body.messageId };
+    } else if (body && typeof body === "object" && "id" in body && typeof body.id === "string" &&
         /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(body.id)) return { accepted: true, providerId: body.id };
   } catch {
     return { accepted: false, retry: true, uncertain: true, errorClass: "invalid_response" };
@@ -94,7 +105,7 @@ async function submit(envelope: Envelope, id: string, apiKey: string, fetcher: t
 }
 
 export async function dispatchAuthEmail(db: Database, options: {
-  key: Buffer; apiKey: string; fetcher?: typeof fetch; dailyLimit?: number; monthlyLimit?: number;
+  key: Buffer; apiKey: string; fetcher?: typeof fetch; dailyLimit?: number; monthlyLimit?: number; provider?: EmailProvider;
 }) {
   checkKey(options.key);
   if (!options.apiKey || /[\s\r\n]/.test(options.apiKey)) throw new Error("A server-only provider credential is required.");
@@ -136,7 +147,7 @@ export async function dispatchAuthEmail(db: Database, options: {
   } catch {
     console.error(JSON.stringify({ event: "auth_email_payload_invalid", correlationId: job.id }));
   }
-  const result: Result = envelope ? await submit(envelope, job.id, options.apiKey, options.fetcher ?? fetch) :
+  const result: Result = envelope ? await submit(envelope, job.id, options.apiKey, options.fetcher ?? fetch, options.provider ?? "resend-free") :
     { accepted: false, retry: false, uncertain: false, errorClass: "invalid_payload" };
   const uncertain = job.uncertain || (!result.accepted && result.uncertain);
   const state = result.accepted ? "accepted" : result.retry && job.attempts < maxAttempts ? "queued" : uncertain ? "unknown" : "failed";
