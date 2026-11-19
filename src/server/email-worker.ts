@@ -15,7 +15,8 @@ export async function runEmailWorker(options: {
 } = {}): Promise<Outcome> {
   const env = options.env ?? process.env;
   const config = emailOutboxConfig(env);
-  if (!env.RESEND_API_KEY || !env.DATABASE_URL) throw new Error("Worker-only provider and runtime database credentials are required.");
+  const apiKey = config.provider === "brevo-free" ? env.BREVO_API_KEY : env.RESEND_API_KEY;
+  if (!apiKey || !env.DATABASE_URL) throw new Error("Worker-only provider and runtime database credentials are required.");
   const database = (options.createDatabase ?? ((url) => openDatabase(url, ["production"])))(env.DATABASE_URL);
   try {
     await assertDatabaseReady(database);
@@ -24,6 +25,6 @@ export async function runEmailWorker(options: {
       AND has_table_privilege(current_user,format('%I.%I',schemaname,tablename),
         'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')) AS broad`);
     if (scope?.broad !== false) throw new Error("A separately restricted email-only runtime role is required.");
-    return await dispatchAuthEmail(database, { key: config.key, apiKey: env.RESEND_API_KEY, ...(options.fetcher ? { fetcher: options.fetcher } : {}) });
+    return await dispatchAuthEmail(database, { key: config.key, apiKey, provider: config.provider, ...(options.fetcher ? { fetcher: options.fetcher } : {}) });
   } finally { await database.close(); }
 }
