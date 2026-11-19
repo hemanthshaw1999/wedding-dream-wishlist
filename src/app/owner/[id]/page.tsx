@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { OwnerControls } from "@/components/owner-controls";
+import { OwnerRecipient } from "@/components/owner-recipient";
 import { WishlistView } from "@/components/wishlist-view";
 import { AppError } from "@/lib/errors";
 import { getDatabase } from "@/server/database";
@@ -31,5 +32,5 @@ export default async function Preview({ params }: { params: Promise<{ id: string
     }
     throw error;
   }
-  return <><header className="page-title"><Link href="/owner">Back to workspace</Link><p className="eyebrow">Your private management view</p><h1>{wishlist.displayNames}</h1><nav className="actions section-nav" aria-label="Wishlist sections"><a href="#publication">Publish and share</a><a href="#manage-goals-title">Manage goals</a><a href="#reports-title">Guest reports</a><a href="#guest-preview">Guest preview</a></nav></header><OwnerControls wishlist={wishlist} origin={applicationOrigin()} /><ClaimsDashboard wishlistId={wishlist.id} initial={reports} /><section id="guest-preview" aria-label="Guest preview"><WishlistView wishlist={wishlist} preview /></section></>;
+  return <><header className="page-title"><Link href="/owner">Back to workspace</Link><p className="eyebrow">Your private management view</p><h1>{wishlist.displayNames}</h1><nav className="actions section-nav" aria-label="Wishlist sections"><a href="#publication">Publish and share</a><a href="#payment-setup">Payment setup</a><a href="#manage-goals-title">Manage goals</a><a href="#reports-title">Guest reports</a><a href="#guest-preview">Guest preview</a></nav></header><OwnerControls wishlist={wishlist} origin={applicationOrigin()} /><OwnerRecipient wishlist={wishlist} /><ClaimsDashboard wishlistId={wishlist.id} initial={reports} live={wishlist.paymentMode === "upi"} /><section id="guest-preview" aria-label="Guest preview"><WishlistView wishlist={wishlist} preview /></section></>;
 }
