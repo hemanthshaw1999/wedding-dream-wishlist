@@ -43,7 +43,7 @@ export function WishlistView({ wishlist, preview = false }: { wishlist: PublicWi
       <section aria-labelledby="dreams-title">
         <div className="section-heading">
           <div><p className="eyebrow">Experiences, not expectations</p><h2 id="dreams-title">Our dreams</h2></div>
-          <p>Gifting is always optional.</p>
+          <p>Pick a goal and give any amount that suits you. Every contribution counts toward it, and gifting is always optional.</p>
         </div>
         <div className="goal-grid">
           {wishlist.goals.map((goal, index) => (
