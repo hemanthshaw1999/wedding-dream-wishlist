@@ -31,6 +31,11 @@ export function authenticationConfig(env: Environment = process.env) {
 // activates anything: each wishlist still requires the reviewed, reauthenticated owner
 // activation flow, and no environment value can create or bind recipient instructions.
 // Unset (the default everywhere) disables all live payment behavior server-side.
+// Non-throwing production check for paths where full origin validation is not available.
+export function isProductionDeployment(env: Environment = process.env): boolean {
+  return env.APP_ENV === "production";
+}
+
 export function liveUpiApproved(env: Environment = process.env): boolean {
   return env.LIVE_UPI_APPROVED === "yes";
 }
