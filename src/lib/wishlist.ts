@@ -30,6 +30,9 @@ export type GoalCommand = { version: number; reason: string } & (
   { action: "archive" | "restore"; goalId: string } |
   { action: "reorder"; goalIds: string[] }
 );
+export type PaymentMode = "demo" | "upi";
+export type LiveRecipient = { id: string; version: number; upiId: string; label: string };
+export type RecipientVersionView = LiveRecipient & { createdAt: string };
 export type PublicWishlist = {
   slug: string;
   displayNames: string;
@@ -38,8 +41,9 @@ export type PublicWishlist = {
   expiresAt: string | null;
   availability: "available" | "paused" | "closed" | "expired" | "draft" | "archived";
   currency: "INR";
-  paymentMode: "demo";
+  paymentMode: PaymentMode;
   recipientSnapshot: { id: string; label: string; mode: "demo" } | null;
+  liveRecipient: LiveRecipient | null;
   goals: Goal[];
 };
 export type OwnerWishlist = Omit<PublicWishlist, "goals"> & {
@@ -160,6 +164,37 @@ export function validateWishlist(input: unknown, now = new Date()): NewWishlist 
     visibility: data.visibility as Visibility,
     goals: data.goals.map((goal, index) => validateGoal(goal, `goals.${index}.`))
   };
+}
+
+export type NewRecipient = { upiId: string; label: string };
+
+// Syntax check only: a well-formed UPI ID is never proof that the couple owns or controls it.
+const UPI_ID = /^[a-zA-Z0-9._-]{2,64}@[a-zA-Z][a-zA-Z0-9]{1,29}$/;
+
+export function validateRecipient(input: unknown): NewRecipient {
+  const data = record(input);
+  if (Object.keys(data).some((key) => !["upiId", "label"].includes(key))) {
+    throw new AppError(422, "VALIDATION", "Unknown recipient fields are not accepted.");
+  }
+  const upiId = text(data.upiId, "upiId", 100);
+  if (!UPI_ID.test(upiId)) {
+    throw new AppError(422, "VALIDATION", "Check upiId.", { upiId: "Use a UPI ID such as name@bank. Only the syntax is checked; ownership is never verified." });
+  }
+  return { upiId, label: text(data.label, "label", 100) };
+}
+
+export type LiveActivation = { version: number; recipientVersionId: string; confirmUpiId: string };
+
+export function validateLiveActivation(input: unknown): LiveActivation {
+  const data = record(input);
+  if (Object.keys(data).some((key) => !["version", "recipientVersionId", "confirmUpiId", "acknowledged"].includes(key))) {
+    throw new AppError(422, "VALIDATION", "Send only the documented live-activation fields.");
+  }
+  if (!Number.isSafeInteger(data.version) || Number(data.version) < 1) throw new AppError(422, "VALIDATION", "A valid wishlist version is required.");
+  if (data.acknowledged !== true) {
+    throw new AppError(422, "ACK_REQUIRED", "Review the recipient in your own UPI app and acknowledge the live-payment terms before enabling them.");
+  }
+  return { version: Number(data.version), recipientVersionId: text(data.recipientVersionId, "recipientVersionId", 100), confirmUpiId: text(data.confirmUpiId, "confirmUpiId", 100) };
 }
 
 const transitions: Record<WishlistState, readonly WishlistState[]> = {

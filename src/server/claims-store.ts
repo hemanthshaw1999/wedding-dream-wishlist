@@ -3,23 +3,28 @@ import type { Database } from "./database.ts";
 import { AppError } from "../lib/errors.ts";
 import { assertClaimTransition } from "../lib/claims.ts";
 import type { ClaimDashboard, ClaimReceipt, ClaimStatus, NewClaim, OwnerClaim } from "../lib/claims.ts";
+import { liveUpiApproved } from "./config.ts";
 import { integer, WishlistStore } from "./store.ts";
 
 type ClaimRow = {
   id: string; status: ClaimStatus; amount_paise: string; goal_title: string; recipient_label: string;
   token_expires_at: string; guest_name: string; guest_message: string; reference: string;
   version: number; created_at: string; duplicate_reference: number; request_hash: string; wishlist_id: string;
+  mode: "demo" | "upi";
 };
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 const selection = `SELECT c.id,c.status,c.amount_paise::text,c.token_expires_at,c.guest_name,c.guest_message,
-  c.reference,c.version,c.created_at,c.request_hash,c.wishlist_id,g.title AS goal_title,r.label AS recipient_label,
+  c.reference,c.version,c.created_at,c.request_hash,c.wishlist_id,g.title AS goal_title,
+  COALESCE(r.label,rv.label) AS recipient_label,
+  CASE WHEN c.recipient_version_id IS NOT NULL THEN 'upi' ELSE 'demo' END AS mode,
   CASE WHEN c.reference<>'' AND EXISTS(SELECT 1 FROM contributions other
     WHERE other.wishlist_id=c.wishlist_id AND other.reference=c.reference AND other.id<>c.id)
     THEN 1 ELSE 0 END AS duplicate_reference FROM contributions c JOIN goals g ON g.id=c.goal_id
-  JOIN recipient_snapshots r ON r.id=c.recipient_snapshot_id`;
+  LEFT JOIN recipient_snapshots r ON r.id=c.recipient_snapshot_id
+  LEFT JOIN recipient_versions rv ON rv.id=c.recipient_version_id`;
 function receipt(row: ClaimRow): ClaimReceipt {
   return { id: row.id, status: row.status, amountPaise: integer(row.amount_paise), currency: "INR",
-    goalTitle: row.goal_title, recipientLabel: row.recipient_label, tokenExpiresAt: row.token_expires_at, mode: "demo" };
+    goalTitle: row.goal_title, recipientLabel: row.recipient_label, tokenExpiresAt: row.token_expires_at, mode: row.mode };
 }
 function ownerClaim(row: ClaimRow): OwnerClaim {
   return { ...receipt(row), guestName: row.guest_name, guestMessage: row.guest_message,
@@ -43,23 +48,42 @@ export class ClaimsStore {
         return receipt(previous);
       }
       const wishlist = await new WishlistStore(tx).getPublic(slug, true);
-      if (wishlist.availability !== "available") throw new AppError(409, "UNAVAILABLE", "This wishlist is not accepting demo reports.");
-      const recipient = wishlist.recipientSnapshot;
-      if (!recipient || recipient.id !== input.recipientSnapshotId) throw new AppError(409, "STALE_RECIPIENT", "Recipient instructions changed. Refresh and review before submitting.");
+      let recipientSnapshotId: string | null = null;
+      let recipientVersionId: string | null = null;
+      let late = false;
+      if (wishlist.paymentMode === "upi") {
+        // New live reports require the operator gate; replays of existing receipts above stay safe.
+        if (!liveUpiApproved()) throw new AppError(503, "LIVE_PAYMENTS_DISABLED", "Live payment instructions are disabled for this deployment. The operator has not recorded owner approval for live direct UPI.");
+        const live = wishlist.liveRecipient;
+        if (!live || live.id !== input.recipientVersionId) {
+          throw new AppError(409, "STALE_RECIPIENT", "Recipient instructions changed. Refresh and review the current UPI ID in your own UPI app before paying or reporting.");
+        }
+        if (wishlist.availability === "paused") late = true;
+        else if (wishlist.availability !== "available") throw new AppError(409, "UNAVAILABLE", "This wishlist is not accepting reports.");
+        recipientVersionId = live.id;
+      } else {
+        if (wishlist.availability !== "available") throw new AppError(409, "UNAVAILABLE", "This wishlist is not accepting demo reports.");
+        const recipient = wishlist.recipientSnapshot;
+        if (!recipient || recipient.id !== input.recipientSnapshotId) throw new AppError(409, "STALE_RECIPIENT", "Recipient instructions changed. Refresh and review before submitting.");
+        recipientSnapshotId = recipient.id;
+      }
       const goal = wishlist.goals.find((goal) => goal.id === input.goalId);
       if (!goal) throw new AppError(422, "GOAL_MISMATCH", "This goal does not belong to the wishlist.");
       if (goal.archivedAt) throw new AppError(409, "ARCHIVED", "This goal is archived and cannot accept new reports.");
       const source = await tx.get<{ id: string }>("SELECT id FROM wishlists WHERE slug=$1", [slug]);
       if (!source) throw new AppError(409, "UNAVAILABLE", "Wishlist is no longer available.");
       const duplicate = input.reference && await tx.get("SELECT id FROM contributions WHERE wishlist_id=$1 AND reference=$2 LIMIT 1", [source.id, input.reference]);
-      const status: ClaimStatus = duplicate ? "needs_review" : "reported";
+      const status: ClaimStatus = duplicate || late ? "needs_review" : "reported";
       const id = randomUUID();
       const now = new Date().toISOString();
       const expiry = new Date(Date.now() + 7 * 86_400_000).toISOString();
-      await tx.run(`INSERT INTO contributions VALUES($1,$2,$3,$4,$5,'INR',$6,$7,$8,$9,$10,$11,$12,1,$13,$13)`,
-        [id, source.id, input.goalId, recipient.id, input.amountPaise, input.guestName, input.guestMessage, input.reference, status, tokenHash, requestHash, expiry, now]);
+      await tx.run(`INSERT INTO contributions(id,wishlist_id,goal_id,recipient_snapshot_id,recipient_version_id,
+        amount_paise,currency,guest_name,guest_message,reference,status,token_hash,request_hash,token_expires_at,version,created_at,updated_at)
+        VALUES($1,$2,$3,$4,$5,$6,'INR',$7,$8,$9,$10,$11,$12,$13,1,$14,$14)`,
+        [id, source.id, input.goalId, recipientSnapshotId, recipientVersionId, input.amountPaise, input.guestName, input.guestMessage, input.reference, status, tokenHash, requestHash, expiry, now]);
       await tx.run("INSERT INTO claim_events VALUES($1,$2,NULL,NULL,$3,0,$4,$5)",
-        [randomUUID(), id, status, duplicate ? "Duplicate reference; review required. Reference is not proof." : "Guest declaration only; not verified.", now]);
+        [randomUUID(), id, status, late ? "Reported after the collection paused; the couple must verify bank records carefully."
+          : duplicate ? "Duplicate reference; review required. Reference is not proof." : "Guest declaration only; not verified.", now]);
       const row = await tx.get<ClaimRow>(`${selection} WHERE c.id=$1`, [id]);
       if (!row) throw new Error("Created contribution is missing.");
       return receipt(row);

@@ -110,7 +110,7 @@ real passwords. Test restoration with access to separately protected required ke
 `npm start` and `npm run dev` are intentionally **local demo launchers**, not hosting commands.
 The standalone production entrypoint is `npm run start:production`; it validates auth/email,
 database marker, restricted role and schema version before listening. Current schema versions
-are 001-005. Raise required-version checks when adding migrations; never rewrite applied SQL.
+are 001-006. Raise required-version checks when adding migrations; never rewrite applied SQL.
 
 A Next.js serverless adapter may bypass that standalone entrypoint. Guarded database pools
 now enforce the minimum schema as well as environment/role checks. `GET /api/health/ready`
@@ -149,6 +149,21 @@ target edits require acknowledgement and cannot fall below current confirmed pro
 Archive retains private receipts, financial records and totals, but blocks fresh reports.
 Reorders include all retained goals; the 20-goal limit includes archived goals.
 
+The live direct-UPI vertical slice is now implemented (migration 006): authenticated,
+reauthenticated owner recipient setup with immutable versioned recipient snapshots
+(syntax-checked UPI ID plus label; syntax is never ownership verification), reviewed live
+activation (exact UPI ID re-entry plus explicit acknowledgement), one-way demo-to-live
+transition that report-holding demo wishlists can never take, stale-instruction rejection
+for guests holding an older version, late live reports on paused collections forced into
+careful review, and idempotent private receipts preserved across pause/closure. Live
+confirmation uses the same append-only ledger; uploads/screenshots remain disabled and no
+QR/payment link is generated. Activation is additionally blocked server-side unless the
+operator records the owner's explicit approval via LIVE_UPI_APPROVED=yes; that attestation
+alone activates nothing. The same gate darkens already-live rows for guests (no payable
+instructions project while it is unset or inexact) and refuses new live reports with 503,
+while existing receipts replay and owner views stay intact. Real payments therefore stay disabled by default in every
+deployment, and public launch remains gated below.
+
 Public cards show at most the latest 20 target revisions, without private reasons or actors.
 Owner history shows the latest 100 full changes with reasons; older rows remain in PostgreSQL.
 Financial confirmation, reporting and goal mutations share a parent-lock order.
@@ -165,13 +180,10 @@ created, no real mail sent, and Netlify-hosted bundling/scheduling is not yet ve
 These are real code tasks, not missing credentials. Finish them before representing the
 application as production-ready. Existing local flows must remain usable while work proceeds.
 
-1. **Live direct-UPI vertical slice.** Implement authenticated recipient setup, recent
-   reauthentication, immutable versioned recipient/instruction snapshots, reviewed live
-   activation and stale-instruction/late-report behavior. Preserve existing idempotent private
-   receipts even after pause/archive. Guests may report an amount they actually paid; no
-   platform charge is required. Screenshots are optional unverified evidence only; leave
-   uploads disabled unless a private, bounded, safe upload/retention pipeline is implemented.
-   Never retroactively switch published demo histories into real-money histories.
+1. ~~Live direct-UPI vertical slice~~ (implemented; see below). Remaining related gate:
+   the owner must still approve the live funding policy and recipient setup per the release
+   gates, and screenshot uploads stay disabled unless a private, bounded, safe
+   upload/retention pipeline is implemented.
 2. **Privacy, safety and support.** Implement account export/deletion with session revocation,
    actual retention jobs, abuse reporting/moderation and least-privilege support operations.
    Keep financial corrections append-only. Preserve CSV formula-injection defense and private

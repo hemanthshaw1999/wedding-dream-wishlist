@@ -72,6 +72,42 @@ PostgreSQL migrations execute atomically. They include library auth tables/index
 
 Recipient snapshots in this demo contain only a label copied from the fictional couple name, not a UPI address or payment instrument. Real setup, recipient-name confirmation, reauthentication and versioned recipient changes remain unimplemented.
 
+## Live direct-UPI vertical slice - 19 November 2026
+
+Migration **006** adds immutable per-wishlist `recipient_versions` (syntax-checked UPI ID and
+label; syntax is never ownership verification) and a reviewed one-way live activation. Owner
+recipient creation and activation require a session authenticated within the last ten minutes
+(403 REAUTH_REQUIRED otherwise), an exact UPI ID re-entry and an explicit acknowledgement.
+Activation is one transaction with an audit entry, allowed only while a wishlist holds zero
+reports: a wishlist with existing demo reports can never become a live-payment wishlist, and
+live mode cannot be reversed or switched to any other mode (database trigger and app check).
+The only implemented live funding policy is allow-overfunding with truthful totals, chosen
+explicitly per activation; product-level policy approval remains a release gate.
+
+All live payment behavior is server-enforced off by default: activation is rejected with
+503 LIVE_PAYMENTS_DISABLED unless the operator sets LIVE_UPI_APPROVED=yes after the owner's
+explicit approval. The variable is an attestation, not a switch: it cannot create or bind
+recipient instructions, convert demo history, or activate any wishlist by itself, and an
+inexact value does not open the gate. The gate covers existing live rows too: with the gate
+unset or inexact, the guest projection of a live wishlist carries no payable instructions
+(liveRecipient is null, so no UPI ID reaches the page or API), the guest UI shows a
+payments-unavailable notice instead of any pay/report flow, and new live reports are refused
+with 503. Existing private receipts still replay and the guest status lookup keeps working;
+the owner's own view of their live setup is unchanged.
+
+Guests holding an older instruction version get 409 STALE_RECIPIENT and must refresh. A live
+wishlist paused after a guest already paid still accepts that late report, forced into
+`needs_review` with an explicit late reason; closed collections accept no new reports, and
+idempotent private receipts replay across pause/closure in both modes. Live reports bind the
+recipient version, never a demo snapshot; confirmation uses the same append-only ledger. No
+QR, upload, screenshot or payment-link pipeline exists, and no money is collected or verified.
+
+Focused validation on PostgreSQL 18.7 (Linux): 140 unit/integration tests across 12 files
+passed, including nine new recipient/activation/gate/stale/late-report/ledger cases, plus
+lint, type-check and optimized build on Node 24.22.3. Browser journeys were not re-run for this
+increment; demo-flow wording used by existing e2e selectors is unchanged. No hosted
+activation, real recipient, real payment or deployment was performed.
+
 ## Report invariants and states
 
 Amount INR 1 to INR 1,00,000; plain decimal strings with at most two places. Currency mismatch/unknown fields rejected. Optional bounded name/message/reference. A report's amount/goal/currency/recipient/guest text cannot later be edited silently.

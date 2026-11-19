@@ -74,7 +74,7 @@ describe("production runtime boundaries with isolated PostgreSQL and mocked mail
       expect(role).toMatch(/^wishlist_runtime_[a-f0-9]{24}$/);
       await web.db.run(`REVOKE INSERT ON goals FROM "${role}"`);
       await expect(assertApplicationReady(runtime, webEnv)).rejects.toThrow("grants are incomplete");
-      await web.db.run("DELETE FROM schema_migrations WHERE version=5");
+      await web.db.run("DELETE FROM schema_migrations WHERE version=6");
       await expect(assertDatabaseReady(runtime)).rejects.toThrow("migrations");
       const fresh = connect(web.runtimeUrl);
       await expect(fresh.ready()).rejects.toThrow("migrations");

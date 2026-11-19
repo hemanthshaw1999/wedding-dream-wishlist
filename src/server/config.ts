@@ -27,6 +27,14 @@ export function authenticationConfig(env: Environment = process.env) {
   return { ...application, secret };
 }
 
+// Operator attestation gate for live direct-UPI activation. This variable alone never
+// activates anything: each wishlist still requires the reviewed, reauthenticated owner
+// activation flow, and no environment value can create or bind recipient instructions.
+// Unset (the default everywhere) disables all live payment behavior server-side.
+export function liveUpiApproved(env: Environment = process.env): boolean {
+  return env.LIVE_UPI_APPROVED === "yes";
+}
+
 export function isEmailAddress(value: string) {
   return value.length <= 254 && value.split("@")[0].length <= 64 &&
     /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z]{2,63}$/i.test(value);
