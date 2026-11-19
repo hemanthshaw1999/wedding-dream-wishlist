@@ -69,7 +69,7 @@ export function WishlistView({ wishlist, preview = false }: { wishlist: PublicWi
           ))}
         </div>
       </section>
-      <p className="privacy-note">{wishlist.paymentMode === "upi" ? "Guest names, messages, references and individual gift amounts are private. Public progress includes only owner-confirmed reports, never unverified declarations." : en.privacy}</p>
+      <p className="privacy-note">{wishlist.paymentMode === "upi" || production ? "Guest names, messages, references and individual gift amounts are private. Public progress includes only owner-confirmed reports, never unverified declarations." : en.privacy}</p>
     </article>
   );
 }
