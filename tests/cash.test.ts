@@ -73,3 +73,32 @@ describe("supporters opt-in", () => {
     expect(pub.goals[0].confirmedPaise).toBe(40000);
   });
 });
+
+describe("supporters list end to end (database level)", () => {
+  it("ranks confirmed opted-in gifts, excludes others, and honours withdrawal without touching the total", async () => {
+    const { ClaimsStore } = await import("../src/server/claims-store");
+    const { randomBytes } = await import("node:crypto");
+    const claims = new ClaimsStore(db);
+    const mk = (amount: string, extra: Record<string, unknown>) => validateClaim({ goalId: wishlist.goals[0].id, recipientSnapshotId: wishlist.recipientSnapshot?.id,
+      amount, currency: "INR", token: randomBytes(32).toString("hex"), ...extra });
+    const inputs = [mk("100", { guestName: "Small Public", publicDisplay: true }), mk("300", { guestName: "Big Public", publicDisplay: true }),
+      mk("200", { guestName: "Private Pat" }), mk("250", { publicDisplay: false }), mk("150", { guestName: "Unconfirmed Public", publicDisplay: true })];
+    const ids: string[] = [];
+    for (const input of inputs) ids.push((await claims.report(wishlist.slug, input)).id);
+    for (const id of ids.slice(0, 4)) {
+      const dash = await claims.dashboard(wishlist.id, "owner-a");
+      const claim = dash.claims.find((c) => c.id === id)!;
+      await claims.resolve(wishlist.id, id, "owner-a", "owner_confirmed", claim.version, "test");
+    }
+    await cash.add(wishlist.id, "owner-a", gift({ donorName: "Cash Uncle" }));
+    let pub = await wishlists.getPublic(wishlist.slug);
+    expect(pub.supporters.map((s) => [s.name, s.amountPaise])).toEqual([["Big Public", 30000], ["Small Public", 10000]]);
+    const total = pub.goals[0].confirmedPaise;
+    expect(total).toBe(10000 + 30000 + 20000 + 25000 + 40000);
+    await claims.withdrawListing(inputs[1].token);
+    pub = await wishlists.getPublic(wishlist.slug);
+    expect(pub.supporters.map((s) => s.name)).toEqual(["Small Public"]);
+    expect(pub.goals[0].confirmedPaise).toBe(total);
+    await expect(claims.withdrawListing("bad")).rejects.toThrow();
+  });
+});

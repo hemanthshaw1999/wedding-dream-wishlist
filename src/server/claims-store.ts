@@ -13,7 +13,8 @@ type ClaimRow = {
   mode: "demo" | "upi";
 };
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
-const selection = `SELECT c.id,c.status,c.amount_paise::text,c.token_expires_at,c.guest_name,c.guest_message,c.public_display,
+const selection = `SELECT c.id,c.status,c.amount_paise::text,c.token_expires_at,c.guest_name,c.guest_message,
+  (c.public_display AND NOT EXISTS(SELECT 1 FROM supporter_withdrawals sw WHERE sw.contribution_id=c.id)) AS public_display,
   c.reference,c.version,c.created_at,c.request_hash,c.wishlist_id,g.title AS goal_title,
   COALESCE(r.label,rv.label) AS recipient_label,
   CASE WHEN c.recipient_version_id IS NOT NULL THEN 'upi' ELSE 'demo' END AS mode,
@@ -24,7 +25,7 @@ const selection = `SELECT c.id,c.status,c.amount_paise::text,c.token_expires_at,
   LEFT JOIN recipient_versions rv ON rv.id=c.recipient_version_id`;
 function receipt(row: ClaimRow): ClaimReceipt {
   return { id: row.id, status: row.status, amountPaise: integer(row.amount_paise), currency: "INR",
-    goalTitle: row.goal_title, recipientLabel: row.recipient_label, tokenExpiresAt: row.token_expires_at, mode: row.mode };
+    goalTitle: row.goal_title, listedPublicly: Boolean(row.public_display), recipientLabel: row.recipient_label, tokenExpiresAt: row.token_expires_at, mode: row.mode };
 }
 function ownerClaim(row: ClaimRow): OwnerClaim {
   return { ...receipt(row), guestName: row.guest_name, guestMessage: row.guest_message, publicDisplay: Boolean(row.public_display),
@@ -90,6 +91,17 @@ export class ClaimsStore {
       const row = await tx.get<ClaimRow>(`${selection} WHERE c.id=$1`, [id]);
       if (!row) throw new Error("Created contribution is missing.");
       return receipt(row);
+    });
+  }
+
+  async withdrawListing(token: unknown): Promise<ClaimReceipt> {
+    if (typeof token !== "string" || !/^[a-f0-9]{64}$/.test(token)) throw new AppError(404, "NOT_FOUND", "Private report not available.");
+    return this.db.transaction(async (tx) => {
+      const row = await tx.get<ClaimRow>(`${selection} WHERE c.token_hash=$1 AND c.token_expires_at>$2`, [hash(token), new Date().toISOString()]);
+      if (!row) throw new AppError(404, "NOT_FOUND", "Private report not available or link expired.");
+      if (row.public_display) await tx.run("INSERT INTO supporter_withdrawals VALUES($1,$2) ON CONFLICT DO NOTHING", [row.id, new Date().toISOString()]);
+      const after = await tx.get<ClaimRow>(`${selection} WHERE c.id=$1`, [row.id]);
+      return receipt(after as ClaimRow);
     });
   }
 

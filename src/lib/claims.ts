@@ -8,7 +8,7 @@ export type NewClaim = {
 };
 export type ClaimReceipt = {
   id: string; status: ClaimStatus; amountPaise: number; currency: "INR";
-  goalTitle: string; recipientLabel: string; tokenExpiresAt: string; mode: "demo" | "upi";
+  goalTitle: string; recipientLabel: string; tokenExpiresAt: string; mode: "demo" | "upi"; listedPublicly?: boolean;
 };
 export type OwnerClaim = ClaimReceipt & {
   guestName: string; guestMessage: string; publicDisplay?: boolean; reference: string; duplicateReference: boolean;
