@@ -86,12 +86,26 @@ Returns current owner's complete **OwnerWishlist** projection or 404. Membership
 
 Body: `{"state":"published","version":1}`. Only these two keys accepted. Up to 20 requests/minute/owner. Version is a positive integer. Returns updated OwnerWishlist with incremented version. State change and audit append are one transaction. See state table for allowed transitions. A stale tab gets 409; refresh, do not blindly retry. No hard delete, recipient-change, mode-change or target-edit route exists.
 
+## GET /api/owner/wishlists/{id}/recipient
+
+Owner session required. Returns the wishlist's immutable recipient versions, newest first.
+
+## POST /api/owner/wishlists/{id}/recipient
+
+Requires a session authenticated within the last 10 minutes, JSON `{"upiId":"name@bank","label":"..."}` only. Up to 10 requests/minute/owner. UPI ID syntax is validated; ownership is never verified. Creates the next immutable version (starts inert; guests never see it until activation). 403 REAUTH_REQUIRED for older sessions; 409 for closed/expired wishlists.
+
+## POST /api/owner/wishlists/{id}/live
+
+Requires a session authenticated within the last 10 minutes, JSON `{"version":N,"recipientVersionId":"...","confirmUpiId":"...","acknowledged":true}` only. Up to 5 requests/minute/owner. `confirmUpiId` must exactly match the chosen version's UPI ID. Activates live direct-UPI instructions and the allow-overfunding policy in one transaction with an audit entry. One-way: a wishlist with any existing report can never change payment mode, and a live wishlist can only switch to a different reviewed version. The whole route is disabled with 503 LIVE_PAYMENTS_DISABLED unless the operator has recorded owner approval (LIVE_UPI_APPROVED=yes). 409 STALE_VERSION / HISTORY_LOCKED / NO_CHANGE; 422 CONFIRM_MISMATCH / ACK_REQUIRED.
+
 ## GET /api/public/wishlists/{slug}
 
 No session required. Only public/unlisted in published/paused/closed states. Private/draft/archived/unknown all return 404. `availability` may be `available|paused|closed|expired`. Returns the OwnerWishlist example above **without `id`, `state`, `visibility` or `version`**. Goal IDs are non-secret identifiers and never authorize owner access. No guest names, messages, individual payments, user IDs, cookies or management links are included.
+
+Live recipient instructions (`paymentMode` `upi` with `liveRecipient`) project only while the operator gate holds (`LIVE_UPI_APPROVED=yes`); with the gate unset or inexact, a live wishlist projects `paymentMode` `upi` with `liveRecipient: null` and no payable instructions. New live reports on such rows are refused with 503 LIVE_PAYMENTS_DISABLED; existing private receipts still replay and `/api/guest/status` keeps working.
 
 The guest HTML route `/w/{slug}` uses the same server projection. The owner `/owner/{id}` route checks a session/membership before rendering any wishlist data. Share URLs/QR contain only `/w/{slug}`.
 
 ## Explicitly absent
 
-There are no contribution, checkout, UPI, webhook, refund, payout, admin, upload, notification, CSV export or real-account endpoints. A client cannot activate these through an undocumented flag.
+There are no checkout, payment-gateway, webhook, refund, payout, admin, upload, notification or automatic bank-verification endpoints. Direct-UPI instructions are versioned text the guest pays through their own UPI app; the platform never collects, holds or verifies money. A client cannot activate other capabilities through an undocumented flag.
