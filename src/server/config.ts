@@ -42,12 +42,16 @@ export function isEmailAddress(value: string) {
 
 export function emailOutboxConfig(env: Environment = process.env) {
   const application = applicationConfig(env);
-  if (application.mode !== "production" || env.EMAIL_DELIVERY_APPROVED !== "resend-free") {
+  const provider = env.EMAIL_DELIVERY_APPROVED;
+  if (provider !== "resend-free" && provider !== "brevo-free") {
+    throw new Error("Email requires explicit approval of the provider, free plan, sender and data processing.");
+  }
+  if (application.mode !== "production") {
     throw new Error("Email requires explicit approval of the provider, free plan, sender and data processing.");
   }
   if (!env.EMAIL_OUTBOX_KEY || !/^[a-f0-9]{64}$/i.test(env.EMAIL_OUTBOX_KEY)) throw new Error("An independent 256-bit email encryption key is required.");
   if (!env.EMAIL_FROM || !isEmailAddress(env.EMAIL_FROM) || env.EMAIL_SENDER_VERIFIED !== "yes") {
     throw new Error("A separately verified sender domain/address is required.");
   }
-  return { origin: application.origin, key: Buffer.from(env.EMAIL_OUTBOX_KEY, "hex"), from: env.EMAIL_FROM };
+  return { origin: application.origin, key: Buffer.from(env.EMAIL_OUTBOX_KEY, "hex"), from: env.EMAIL_FROM, provider: provider as "resend-free" | "brevo-free" };
 }
