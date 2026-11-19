@@ -62,7 +62,8 @@ export class WishlistStore {
     // Only guest opt-ins the couple has confirmed. Cash gifts and unchecked reports never appear here.
     const supporters = await this.db.all<{ name: string; amount: string; goal_title: string }>(`SELECT trim(c.guest_name) AS name,
       c.amount_paise::text AS amount,g.title AS goal_title FROM contributions c JOIN goals g ON g.id=c.goal_id
-      WHERE c.wishlist_id=$1 AND c.status='owner_confirmed' AND c.public_display ORDER BY c.amount_paise DESC,c.created_at LIMIT 25`, [row.id]);
+      WHERE c.wishlist_id=$1 AND c.status='owner_confirmed' AND c.public_display
+        AND NOT EXISTS(SELECT 1 FROM supporter_withdrawals sw WHERE sw.contribution_id=c.id) ORDER BY c.amount_paise DESC,c.created_at LIMIT 25`, [row.id]);
     const showLive = live && (!guestSafe || liveUpiApproved());
     return {
       slug: row.slug, displayNames: row.display_names, story: row.story,
