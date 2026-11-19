@@ -8,7 +8,7 @@ import { requestJson, RequestError } from "./client-api";
 import { ConfirmAction } from "./confirm-action";
 import { useRequestLock } from "./use-request-lock";
 
-export function OwnerRecipient({ wishlist }: { wishlist: OwnerWishlist }) {
+export function OwnerRecipient({ wishlist, production = false }: { wishlist: OwnerWishlist; production?: boolean }) {
   const router = useRouter();
   const { busy, start, finish } = useRequestLock();
   const [versions, setVersions] = useState<RecipientVersionView[] | null>(null);
@@ -74,7 +74,7 @@ export function OwnerRecipient({ wishlist }: { wishlist: OwnerWishlist }) {
     <section id="payment-setup" className="panel" aria-labelledby="payment-setup-title">
       <h2 id="payment-setup-title">Payment recipient setup</h2>
       {wishlist.paymentMode === "demo" ? (
-        <p><strong>Demo - no real money.</strong> Guest reports are simulated. Add a recipient below only when this wishlist is meant for real direct-to-couple UPI gifts.</p>
+        <p>{production ? <><strong>Gift reports are not enabled yet.</strong> Add the couple&apos;s UPI recipient below and activate live instructions when this wishlist is meant for real direct-to-couple UPI gifts.</> : <><strong>Demo - no real money.</strong> Guest reports are simulated. Add a recipient below only when this wishlist is meant for real direct-to-couple UPI gifts.</>}</p>
       ) : (
         <p><strong>Live direct-to-couple UPI is active.</strong> Guests pay {live?.label} at UPI ID <strong>{live?.upiId}</strong> (instruction version {live?.version}). Overfunding is allowed and totals are shown truthfully. Confirmation always remains your manual bank-record check.</p>
       )}
