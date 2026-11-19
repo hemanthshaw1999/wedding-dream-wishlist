@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { grantRuntime, migrate, openDatabase } from "../src/server/database.ts";
+import { grantEmailRuntime, grantRuntime, migrate, openDatabase } from "../src/server/database.ts";
 
-export async function createTestDatabase(options: { name?: string; migrate?: boolean; restrictedRuntime?: boolean; environment?: "test" | "synthetic-demo-only" } = {}) {
+export async function createTestDatabase(options: { name?: string; migrate?: boolean; restrictedRuntime?: boolean | "email"; environment?: "test" | "synthetic-demo-only" } = {}) {
   const local = process.env.WISHLIST_TEST_ADMIN_URL ? undefined :
     JSON.parse(readFileSync(resolve("data", "local-postgres.json"), "utf8")) as { adminUrl: string };
   const adminUrl = process.env.WISHLIST_TEST_ADMIN_URL || local?.adminUrl;
@@ -31,7 +31,7 @@ export async function createTestDatabase(options: { name?: string; migrate?: boo
       runtimeRole = `wishlist_runtime_${randomBytes(12).toString("hex")}`;
       const password = randomBytes(48).toString("hex");
       await admin.run(`CREATE ROLE "${runtimeRole}" LOGIN PASSWORD '${password}'`);
-      await grantRuntime(db, runtimeRole);
+      await (options.restrictedRuntime === "email" ? grantEmailRuntime : grantRuntime)(db, runtimeRole);
       url.username = runtimeRole;
       url.password = password;
       runtimeUrl = url.toString();

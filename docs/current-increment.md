@@ -191,6 +191,41 @@ isolation, stale versions, report/archive and confirmation/target races, bounded
 mobile layouts down to 320px, private-history non-disclosure and offline/session failures.
 No new full-product security review, real device, live UPI or hosted delivery is claimed.
 
+## Web readiness and independently scoped worker increment
+
+Implemented `GET /api/health/ready` with non-sensitive status/correlation IDs and redacted
+503 failures. It checks valid auth/email configuration, actual PostgreSQL liveness,
+environment/role/minimum schema and every required web permission. Guarded runtime pools
+also enforce minimum schema, including when a serverless adapter bypasses the standalone
+startup script. Permission checks use the same grant definitions as migration provisioning.
+
+Extracted a shared email-worker runner for the CLI and prepared Netlify scheduled function.
+Each invocation opens/closes its own pool and handles at most one leased job. Approval,
+credentials, environment, minimum schema and email-only role checks precede provider calls.
+The worker does not need the auth signing key and refuses the broad web role.
+`DATABASE_EMAIL_ROLE` optionally provisions a distinct pre-created role with metadata reads
+and outbox/budget operations only, not account/financial access.
+
+Separate Netlify package configurations and a static worker-only notice are under `deploy`.
+No extra dependency, provider enrollment or resource was added; the nested worker manifest
+only identifies its framework-free package while root installs use the existing lockfile.
+Generated `.netlify` artifacts are ignored. Current official Netlify docs support minute UTC
+scheduling, a 30-second execution limit and no direct production URL invocation for scheduled
+functions. These platform behaviors still require actual approved hosted verification.
+
+**Free-tier fit is not established:** minute database polling can defeat Neon scale-to-zero
+and exhaust free compute even with little email. The operations guide now requires combined
+web/worker/database budget and hard no-spend review, and records Supabase's standalone
+PostgreSQL Free plan as an additional untested candidate. Neither provider is provisioned.
+
+Actual final Node 24 validation: **127/127 tests across 11 files**, **8/8 desktop/mobile
+browser journeys**, lint, type-check and optimized build passed. Both TOML configurations
+parse and the worker passes native syntax checks. Browser tests revoke only an isolated
+E2E role's goal permission, verify real HTTP 503/redacted output, restore permission and
+observe HTTP 200 again. Local mocked email verifies least-privilege delivery, pool cleanup
+and fail-closed configuration. No real email, hosted bundle, scheduler, public URL or
+payment activation is claimed.
+
 ## Remaining release blockers / uncovered risks
 
 Local PostgreSQL is implemented; hosted provisioning, separate hosted failure domains and off-instance disaster recovery remain unimplemented. There is no application/runtime SQLite dependency. Working local accounts/reporting do not authorize public deployment.

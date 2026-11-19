@@ -80,7 +80,7 @@ None of these values is a browser variable.
 |---|---|---|
 | `APP_ENV` / web, worker, migration | Literal `production` for a production-mode environment | Configuration rejects mixing it with the local demo gate; migrations write/check the production marker. |
 | `APP_ORIGIN` / web, worker | `https://<approved-canonical-host>` without path, credentials or trailing slash | Actual HTTPS/Host/Origin checks, auth links and redirects work only for the intended canonical origin. Test the deployed proxy, not just localhost. |
-| `DATABASE_URL` / web, worker | Provider connection URL for a dedicated non-owning runtime role; percent-encode credentials; remote TLS required | `Database.ready()` accepts the environment and least-privilege role. No superuser, role/database creation, schema CREATE, table ownership or owner-role membership. |
+| `DATABASE_URL` / web, worker, independently scoped | Provider connection URL for a dedicated non-owning role; percent-encode credentials; remote TLS required. Web and worker use different roles against the same intended database. | Readiness checks environment, minimum schema and privileges. The worker's email-only role cannot read accounts or alter wishlists/contributions. |
 | `BETTER_AUTH_SECRET` / web only | Cryptographically generated, independent 48 random bytes encoded as exactly 96 hex characters | Invalid/missing values fail closed. Auth uses Secure/HttpOnly/SameSite cookies; expiry, logout and recovery revoke access. Never reuse an example secret. |
 | `EMAIL_OUTBOX_KEY` / web, worker | A separate 32 random bytes encoded as exactly 64 hex characters; identical between producers/workers in one environment | Queue ciphertext decrypts only with the approved key. Back up the key separately; plan draining/versioning before rotation, not blind replacement. |
 | `EMAIL_FROM` / web, worker | `accounts@<provider-verified-domain>`; bare email, not a display-name string | Provider domain verification succeeds; approve real delivery tests. A plausible address in configuration does not prove sender ownership. |
@@ -89,6 +89,7 @@ None of these values is a browser variable.
 | `RESEND_API_KEY` / worker only | Real least-privilege sending key scoped to the approved domain where supported | Authorized verification/recovery emails reach controlled inboxes. Logs never contain tokens, addresses, message bodies or keys. Provider acceptance alone is not inbox delivery. |
 | `MIGRATION_DATABASE_URL` / migration job only | Separate schema-owner connection to the same intended database, preferably a direct connection | Apply additive migrations with this credential; never expose it to web/worker processes. Do not reuse the runtime role or point at an unrelated database. |
 | `DATABASE_RUNTIME_ROLE` / migration job only | Exact name of the pre-provisioned restricted app role | `npm run db:migrate` grants runtime permissions successfully; subsequent runtime readiness and denial tests pass. The script does not create the database/roles. |
+| `DATABASE_EMAIL_ROLE` / migration job only | Exact name of a distinct pre-provisioned email-only role | Migration grants metadata reads and outbox/budget operations only. The worker rejects the broad web role. Omitting this optional migration argument does not provision worker access. |
 | `PORT` / standalone web only | Integer 1024-65535, normally provided by the host; default `3000` | Private Node listener is reachable through trusted HTTPS termination, not exposed as a public plaintext login server. Serverless platforms use their adapter instead. |
 | `NEXT_TELEMETRY_DISABLED` / build, web | Literal `1` | Set before build as well as runtime; no added analytics/error collector without separate privacy review. |
 
@@ -102,11 +103,14 @@ The standalone production entrypoint is `npm run start:production`; it validates
 database marker, restricted role and schema version before listening. Current schema versions
 are 001-005. Raise required-version checks when adding migrations; never rewrite applied SQL.
 
-A Next.js serverless adapter may bypass that standalone entrypoint. Implement equivalent
-deployment/readiness checks for the selected adapter and verify its CSP nonce propagation,
-private-response/no-store handling, cookies, TLS and connection limits. A `200` home page
-does not prove database/email readiness. No dedicated health/readiness endpoint or scheduler
-is currently implemented; do not configure fictional endpoints and call them working.
+A Next.js serverless adapter may bypass that standalone entrypoint. Guarded database pools
+now enforce the minimum schema as well as environment/role checks. `GET /api/health/ready`
+validates configuration, liveness and required web grants with redacted 503 failures.
+Separate web and scheduled-mail-worker Netlify adapters are supplied under `deploy`;
+see `docs/operations-and-launch.md` for exact package-directory and runtime settings.
+Hosted bundling, CSP nonce propagation, no-store handling, cookies/TLS, actual scheduling
+and connection/credit budgets still require approved deployed verification. A `200` home
+page or health endpoint is not proof of inbox delivery or full product readiness.
 
 ## Owner/product placeholders, not existing environment switches
 
@@ -117,7 +121,7 @@ current code reads**. Collect sensitive recipient data only through the finished
 |---|---|---|
 | `<hosting-account-and-origin>` | Owner-controlled personal account and an approved HTTPS hosting address | Owner signs in personally; verify project ownership, audience, region, free quotas and hard no-spend controls. Never enroll using workplace credentials. |
 | `<database-project-and-region>` | Separate durable PostgreSQL project; staging and production isolated | Approve processing locations and recovery limits. Web restart must not recreate or erase the database. Test pooler/concurrency budgets; the current pool limit is 10 per process, not a global serverless limit. |
-| `<email-domain-and-worker-host>` | Controlled verified sender domain plus a scheduler permitted by the approved plan | Current `auth:deliver` handles one job per invocation. Implement supervised scheduling at least once/minute with measured backlog/expiry behavior and conservative existing quotas. No scheduler is deployed. |
+| `<email-domain-and-worker-host>` | Controlled verified sender domain plus an independently scoped scheduler permitted by the approved plan | CLI and prepared minute-scheduled adapter handle one job per invocation. Verify hosted execution, backlog/expiry behavior and combined compute/credit budgets. No scheduler is deployed; minute polling can exhaust a scale-to-zero database's free compute allowance. |
 | `<live-payment-mode>` | Direct-to-couple UPI, no gateway or platform balance | Implement separately versioned live setup/instructions. The current database only permits `demo`; setting `PAYMENT_MODE=upi` does nothing. Keep demos visibly non-payable. |
 | `<recipient-upi-id-and-label>` | Couple enters their own recipient address and human-readable label after reauthentication | Validate syntax without claiming bank ownership verification. Confirm bank-app recipient details before paying. Store immutable recipient versions and bind instructions/reports to the actual version shown. |
 | `<funding-policy>` | Proposed v1: allow overfunding and show truthful totals; owner has not approved a live policy | Build/test the chosen policy explicitly. A hard cap would require a late-payment/reservation policy, not just hiding a button at 100%. Do not activate real money while undecided. |
@@ -141,6 +145,12 @@ Owner history shows the latest 100 full changes with reasons; older rows remain 
 Financial confirmation, reporting and goal mutations share a parent-lock order.
 Native restore verifies goal/revision snapshots as well as counts and contribution balances.
 
+Web readiness and independently scoped email-worker source/adapters are also now implemented.
+The worker's separate database role cannot read accounts or change financial records, and it
+does not need the auth signing key. Missing approval/credentials, broad roles and schema/
+environment mismatches fail before provider calls. No provider account or resource has been
+created, no real mail sent, and Netlify-hosted bundling/scheduling is not yet verified.
+
 ## Implementation still required
 
 These are real code tasks, not missing credentials. Finish them before representing the
@@ -158,11 +168,11 @@ application as production-ready. Existing local flows must remain usable while w
    Keep financial corrections append-only. Preserve CSV formula-injection defense and private
    guest status. Unlisted links are bearer links, not authenticated privacy; disclose this.
    Do not add analytics, public donor identities or external image fetching by default.
-3. **Deployable web and worker.** Add tested provider-specific configuration for the chosen
-   supported Node 24 runtime, migration job and bounded email scheduler. Check serverless
-   startup/readiness, concurrency/pool budgets and strict origin/cookie/CSP/cache behavior.
-   Monitor queue age, expired/failed/unknown jobs and delivery quotas without logging personal
-   payloads. Do not label an unscheduled CLI or mocked transport as working production email.
+3. **Hosted integration and worker operations.** Use the prepared separate Node 24 web/worker
+   configurations only after approval and free-tier budget review. Verify actual hosted
+   bundling/scheduling, CSP/cache/origin/cookie behavior, concurrent connection use, queue
+   backlog/expiry and controlled inbox delivery. Monitor private-data-free failure/unknown/
+   quota outcomes. Local adapter tests are not evidence of working production email.
 4. **Production recovery and operations.** Implement encrypted off-instance backups, scheduled
    restore checks, non-sensitive readiness/monitoring, redacted incident logs and a release/
    compatible-app-rollback runbook. Preserve environment markers and ledger constraints on
@@ -186,13 +196,14 @@ The existing evidence is local and synthetic, not a hosted acceptance certificat
 
 | Check | Last recorded evidence before this documentation handoff |
 |---|---|
-| Full Node 24 unit/integration suite | 122 passing tests across 10 files after the goal-management increment, including CSP, real PostgreSQL races and native restore. |
-| Focused goal/claim/store suite | 52 passing tests before the final full-suite run. |
-| Desktop/mobile browser journeys | All eight journeys passed together, including owner goal controls, public target history, archived-report denial and preserved input after offline/session failures. |
+| Full Node 24 unit/integration suite | 127 passing tests across 11 files after runtime-adapter work, including CSP, real PostgreSQL races, native restore and least-privilege worker/readiness checks. |
+| Focused runtime/email/store suite | 30 passing tests before the final full-suite run. The earlier goal/claim/store run passed 52 tests. |
+| Desktop/mobile browser journeys | All eight journeys passed together, including real HTTP readiness 200 -> grant-revocation 503 -> restored 200, owner goal controls, private history and preserved input after offline/session failures. |
 | Lint, TypeScript, optimized build | Passed on Node 24; nonce-dependent pages dynamically render. |
 | PostgreSQL durability and restore | Project-process restart preserved synthetic counts; native isolated restore includes auth, confirmed ledger, edited/archived goal history and encrypted queued-email fixtures. Not off-instance disaster recovery. |
 | Production dependency audit | Zero reported advisories at last check; not a guarantee or a development-dependency audit. Recheck before release. |
 | Prior security review | No findings in the scoped auth/email increment. Not a full-product review; deployed TLS/Host/Origin/cache, role provisioning and real email remain unverified. |
+| Deployment adapters | Worker source passes TypeScript/lint/native syntax checks; both Netlify TOML files parse. Platform bundling/scheduling and free-tier fit are not yet verified. |
 | Live deployment, inbox delivery, UPI | Not performed. No cloud accounts/resources, real provider transport, payable UPI instructions or public launch are configured. |
 
 Use Node from `.node-version`. Test commands need an isolated loopback PostgreSQL instance,

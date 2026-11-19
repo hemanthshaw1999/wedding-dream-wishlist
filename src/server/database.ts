@@ -3,6 +3,13 @@ import { resolve } from "node:path";
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
 
 export type DatabaseEnvironment = "synthetic-demo-only" | "production" | "test";
+export const MIN_SCHEMA_VERSION = 5;
+export const WEB_RUNTIME_GRANTS = [
+  ["SELECT", ["app_metadata", "schema_migrations"]],
+  ["SELECT,INSERT", ["users", "memberships", "audit_entries", "recipient_snapshots", "claim_events", "goal_history"]],
+  ["SELECT,INSERT,UPDATE", ["wishlists", "goals", "contributions"]],
+  ["SELECT,INSERT,UPDATE,DELETE", ["auth_users", "auth_sessions", "auth_accounts", "auth_verifications", "auth_rate_limits", "rate_limits", "auth_local_outbox", "auth_email_outbox", "auth_email_budgets"]]
+] as const;
 
 export function poolOptions(connectionString: string) {
   const url = new URL(connectionString);
@@ -48,6 +55,10 @@ export class Database {
         FROM pg_roles WHERE rolname=current_user`);
       const permissions = role.rows[0];
       if (!permissions || Object.values(permissions).some(Boolean)) throw new Error("A restricted non-owning runtime database role is required.");
+      const migration = await this.pool.query("SELECT max(version) AS version FROM schema_migrations");
+      if (!Number.isSafeInteger(Number(migration.rows[0]?.version)) || Number(migration.rows[0]?.version) < MIN_SCHEMA_VERSION) {
+        throw new Error("Database migrations are incomplete.");
+      }
     })().catch((error: unknown) => { this.verification = undefined; throw error; });
     await this.verification;
   }
@@ -116,10 +127,16 @@ export async function migrate(db: Database, environment: DatabaseEnvironment) {
 export async function grantRuntime(db: Database, role: string) {
   if (!/^[a-z][a-z0-9_]{0,62}$/.test(role)) throw new Error("An explicit restricted database runtime role is required.");
   await db.run(`GRANT USAGE ON SCHEMA public TO "${role}"`);
+  for (const [permissions, tables] of WEB_RUNTIME_GRANTS) {
+    for (const table of tables) await db.run(`GRANT ${permissions} ON ${table} TO "${role}"`);
+  }
+}
+
+export async function grantEmailRuntime(db: Database, role: string) {
+  if (!/^[a-z][a-z0-9_]{0,62}$/.test(role)) throw new Error("An explicit restricted email database role is required.");
+  await db.run(`GRANT USAGE ON SCHEMA public TO "${role}"`);
   for (const table of ["app_metadata", "schema_migrations"]) await db.run(`GRANT SELECT ON ${table} TO "${role}"`);
-  for (const table of ["users", "memberships", "audit_entries", "recipient_snapshots", "claim_events", "goal_history"]) await db.run(`GRANT SELECT,INSERT ON ${table} TO "${role}"`);
-  for (const table of ["wishlists", "goals", "contributions"]) await db.run(`GRANT SELECT,INSERT,UPDATE ON ${table} TO "${role}"`);
-  for (const table of ["auth_users", "auth_sessions", "auth_accounts", "auth_verifications", "auth_rate_limits", "rate_limits", "auth_local_outbox", "auth_email_outbox", "auth_email_budgets"]) {
+  for (const table of ["auth_email_outbox", "auth_email_budgets"]) {
     await db.run(`GRANT SELECT,INSERT,UPDATE,DELETE ON ${table} TO "${role}"`);
   }
 }

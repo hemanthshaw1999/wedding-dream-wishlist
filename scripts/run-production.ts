@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { authenticationConfig, emailOutboxConfig } from "../src/server/config.ts";
 import { getDatabase, type Database } from "../src/server/database.ts";
+import { assertDatabaseReady } from "../src/server/readiness.ts";
 
 let database: Database | undefined;
 try {
@@ -10,10 +11,7 @@ try {
   const port = Number(process.env.PORT ?? "3000");
   if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("Invalid production port.");
   database = getDatabase();
-  await database.ready();
-  const migration = await database.get("SELECT max(version) AS version FROM schema_migrations");
-  const version = Number(migration?.version);
-  if (!Number.isSafeInteger(version) || version < 5) throw new Error("Production database migrations are incomplete.");
+  await assertDatabaseReady(database);
   await database.close(); database = undefined;
   const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "--hostname", "0.0.0.0", "--port", String(port)], {
     stdio: "inherit", env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1" }

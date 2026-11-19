@@ -6,7 +6,9 @@
 
 **Current increment:** real **PostgreSQL 18.7** persistence, restricted runtime role, concurrent/idempotent gift reports, audited confirmation/reversal and tested native backup/restore. Self-hosted **Better Auth 1.7.21 (MIT)** now also supports HTTPS-only production configuration and an encrypted, leased authentication-email queue. Local delivery remains a private fictional mailbox; the Resend adapter has only used a mocked transport, never real email. **See `docs/current-increment.md` for current results and launch blockers.**
 
-**Goal management implemented:** owner-scoped add/edit/reorder/archive/restore, immutable revisions, public target-change history and preserved financial records. Reported purpose cannot be rewritten; target changes require acknowledgement and cannot fall below current confirmed progress. Node 24 validation: **122 unit/integration tests and 8 desktop/mobile browser journeys passed**, plus lint/type-check/build.
+**Goal management implemented:** owner-scoped add/edit/reorder/archive/restore, immutable revisions, public target-change history and preserved financial records. Reported purpose cannot be rewritten; target changes require acknowledgement and cannot fall below current confirmed progress.
+
+**Runtime preparation implemented:** truthful `/api/health/ready`, minimum-schema and permission checks, an independently scoped email-only worker role, and separate Netlify web/worker configuration. **127 unit/integration tests and 8 desktop/mobile browser journeys passed**, plus lint/type-check/build. Adapters are not deployed; provider bundling, scheduling, inbox delivery and combined free-tier compute/credit budgets remain unverified. See `docs/operations-and-launch.md` before configuring either project.
 
 ## What actually runs
 

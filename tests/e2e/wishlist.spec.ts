@@ -11,7 +11,7 @@ const fixture = () => ({
   slug: `test-${randomUUID()}`, visibility: "unlisted",
   goals: [{ title: "Our honeymoon", description: "A quiet adventure", target: "300000" }]
 });
-async function verificationLink(email: string): Promise<string> {
+function e2eDatabase() {
   const name = process.env.E2E_DB_NAME;
   if (!name || !/^wishlist_e2e_[a-f0-9]{32}$/.test(name)) throw new Error("Missing isolated E2E database name.");
   const adminUrl = process.env.WISHLIST_TEST_ADMIN_URL ||
@@ -19,7 +19,10 @@ async function verificationLink(email: string): Promise<string> {
   const url = new URL(adminUrl);
   if (!["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)) throw new Error("E2E refuses a remote database.");
   url.pathname = `/${name}`;
-  const db = openDatabase(url.toString());
+  return openDatabase(url.toString());
+}
+async function verificationLink(email: string): Promise<string> {
+  const db = e2eDatabase();
   try {
     const entry = await db.get("SELECT url FROM auth_local_outbox WHERE recipient=$1 AND kind='verification' ORDER BY created_at DESC LIMIT 1", [email]);
     if (!entry) throw new Error("No synthetic verification message was queued.");
@@ -137,6 +140,28 @@ test("verified account, persisted wishlist, anonymous report and audited manual 
 });
 
 test("HTTP controls, real tenant isolation, concurrent changes and sign-out", async ({ request, browser }) => {
+  const readiness = await request.get("/api/health/ready");
+  expect(readiness.status()).toBe(200);
+  expect(await readiness.json()).toEqual({ status: "ready" });
+  expect(readiness.headers()["cache-control"]).toContain("no-store");
+  const database = e2eDatabase();
+  try {
+    const grant = await database.get(`SELECT grantee FROM information_schema.role_table_grants
+      WHERE table_schema='public' AND table_name='goals' AND privilege_type='INSERT'
+      AND grantee LIKE 'wishlist_runtime_%'`);
+    const role = String(grant?.grantee ?? "");
+    if (!/^wishlist_runtime_[a-f0-9]{24}$/.test(role)) throw new Error("Missing isolated E2E runtime role.");
+    await database.run(`REVOKE INSERT ON goals FROM "${role}"`);
+    try {
+      const unavailable = await request.get("/api/health/ready");
+      expect(unavailable.status()).toBe(503);
+      const body = await unavailable.json();
+      expect(body).toEqual({ status: "unavailable", correlationId: expect.any(String) });
+      expect(JSON.stringify(body)).not.toContain(role);
+      expect(JSON.stringify(body)).not.toContain(process.env.E2E_DB_NAME);
+    } finally { await database.run(`GRANT INSERT ON goals TO "${role}"`); }
+    expect((await request.get("/api/health/ready")).status()).toBe(200);
+  } finally { await database.close(); }
   expect((await request.post("/api/demo-session", { data: {} })).status()).toBe(410);
   expect((await request.post("/api/auth/sign-in/email", { data: {}, headers: { Origin: "https://evil.example" } })).status()).toBe(403);
   expect((await request.get("/", { headers: { Host: "evil.example" } })).status()).toBe(403);
