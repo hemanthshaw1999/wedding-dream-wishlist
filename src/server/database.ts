@@ -18,13 +18,14 @@ export function poolOptions(connectionString: string) {
   for (const key of ["sslcert", "sslkey", "sslrootcert"]) {
     if (url.searchParams.has(key)) throw new Error("Custom TLS material in DATABASE_URL is not supported.");
   }
+  const caBundle = process.env.DATABASE_CA_B64;
   const sslMode = url.searchParams.get("sslmode");
   if (!local && sslMode && !["require", "verify-full"].includes(sslMode)) throw new Error("Remote database TLS verification cannot be disabled.");
   url.searchParams.delete("sslmode");
   url.searchParams.delete("channel_binding");
   return {
     connectionString: url.toString(),
-    ssl: local ? false as const : { rejectUnauthorized: true },
+    ssl: local ? false as const : { rejectUnauthorized: true, ...(caBundle ? { ca: Buffer.from(caBundle, "base64") } : {}) },
     enableChannelBinding: !local,
     max: 10,
     connectionTimeoutMillis: 5000,
