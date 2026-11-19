@@ -53,6 +53,21 @@ export async function requireOwner(): Promise<string> {
   return session.user.id;
 }
 
+// Payment-recipient changes additionally require a recently authenticated session,
+// so an unattended older session cannot silently switch where guests send money.
+export async function requireRecentOwner(maxAgeMs = 600_000): Promise<string> {
+  applicationOrigin();
+  const session = await (await getAuth()).api.getSession({ headers: await headers() });
+  if (!session || !session.user.emailVerified) throw new AppError(401, "SESSION_REQUIRED", "Sign in with a verified account. Unsaved fields remain in this tab.");
+  const signedInAt = new Date(session.session.createdAt).getTime();
+  if (!Number.isFinite(signedInAt) || Date.now() - signedInAt > maxAgeMs) {
+    throw new AppError(403, "REAUTH_REQUIRED", "Payment setup needs a fresh sign-in (within the last 10 minutes). Sign in again, then retry. Nothing was changed.");
+  }
+  await getDatabase().run("INSERT INTO users VALUES($1,$2,$3) ON CONFLICT(id) DO NOTHING",
+    [session.user.id, applicationConfig().mode === "production" ? "account" : "fictional-demo", new Date().toISOString()]);
+  return session.user.id;
+}
+
 export async function enforceRateLimit(action: string, actor: string, max: number, periodMs = 60_000): Promise<void> {
   const db = getDatabase();
   const now = Date.now();
