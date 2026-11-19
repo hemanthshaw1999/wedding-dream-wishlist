@@ -1,4 +1,24 @@
+import { applicationConfig } from "@/server/config";
+
+export const dynamic = "force-dynamic";
+
 export default function Privacy() {
+  if (applicationConfig().mode === "production") {
+    return (
+      <article className="panel prose">
+        <p className="eyebrow">Review draft - not legal advice</p><h1>Privacy and limitations</h1>
+        <p><strong>Gifts go directly to the couple.</strong> This app never collects, holds, verifies or refunds money. Guests pay the couple&apos;s own UPI ID in their preferred UPI app and report the gift here; the couple confirms each report against their own bank records. Maintained Better Auth handles account passwords, verification, recovery and sessions.</p>
+        <h2>What is stored</h2><p>The hosted PostgreSQL database stores account email/name, password hashes, Better Auth session/verification records, wishlists, recipient UPI instructions, private guest reports and append-only review events. No bank verification occurs. Guest names, messages and references are optional. No screenshot uploads exist.</p>
+        <p>Better Auth manages its own database session-token format; sessions last one hour. Session cookies are HttpOnly, Secure and SameSite=Strict. Guest status/idempotency keys have 256 bits of randomness, are stored as hashes on the server, expire after seven days and are sent in POST bodies rather than server URL paths.</p>
+        <p>The browser keeps random report keys in tab-scoped session storage for safe retries and private-status reloads, not guest names or messages. The private-status page removes the key from the address bar when checked. Its forget action clears that key and matching retry copies from this tab&apos;s session storage; it does not delete the server report or revoke the original link. Close the tab on a shared device.</p>
+        <h2>What guests can see</h2><p>After publication, public and unlisted wishlists reveal the couple display names, story, wedding date, expiry, goal descriptions, targets and aggregate owner-confirmed progress. Do not put private information in those fields. Aggregate changes can allow someone to infer a gift amount when there are few gifts. Private/draft/archived wishlists are unavailable anonymously. Paused/closed pages stay readable but cannot receive new reports. Unlisted is not authentication.</p>
+        <h2>Account email</h2><p>Verification and recovery links are sent by email through a transactional email provider using the operator&apos;s verified sender address. Treat those links as private credentials and never share them.</p>
+        <h2>No collection or tracking services</h2><p>This application has no analytics, remote images, remote fonts, SMS service, external payment integration or runtime AI API. A running browser and other software may have their own network behavior.</p>
+        <h2>Retention and support</h2><p>Gift reports are owner-managed records, not financial records, and owner confirmation is a manual declaration, never bank or provider verification. CSV export is owner-only and neutralizes spreadsheet formulas. Guest names and messages are never published automatically. No provider refund, payout or tax receipt exists. Contact the project maintainer through your existing channel; do not submit real bank statements or identity documents.</p>
+        <h2>Compliance note</h2><p>India-specific data-protection, payment, tax and cross-border questions must be reviewed using current official guidance and qualified advice. No compliance or tax-benefit claim is made.</p>
+      </article>
+    );
+  }
   return (
     <article className="panel prose">
       <p className="eyebrow">Review draft - not legal advice</p><h1>Local demo privacy</h1>
