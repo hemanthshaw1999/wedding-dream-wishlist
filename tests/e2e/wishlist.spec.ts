@@ -203,3 +203,94 @@ test("keyboard access, responsive forms, missing session and offline retry prese
   await expect(page.getByRole("alert").filter({ hasText: "server could not be reached" })).toBeVisible();
   await expect(page.getByLabel("Target amount")).toHaveValue("500");
 });
+
+test("responsive goal management preserves gift history and exposes only public target revisions", async ({ page, browser }, testInfo) => {
+  await account(page.request);
+  const input = fixture();
+  const created = await page.request.post("/api/owner/wishlists", { data: input, headers: { Origin: origin } });
+  expect(created.status()).toBe(201);
+  const initial = await created.json();
+  await page.goto(`/owner/${initial.id}`);
+  const manager = page.getByRole("region", { name: "Manage goals", exact: true });
+  await manager.getByLabel("Reason for goal change").fill("Private initial edit reason");
+  await manager.getByRole("button", { name: "Edit Our honeymoon", exact: true }).click();
+  await manager.getByLabel("Goal title", { exact: true }).fill("A quieter trip");
+  await manager.getByLabel("Goal target amount").fill("1200");
+  await manager.getByRole("button", { name: "Save goal", exact: true }).click();
+  await expect(manager.getByRole("heading", { name: "A quieter trip", exact: true })).toBeVisible();
+  await manager.getByRole("button", { name: "Add goal", exact: true }).click();
+  await manager.getByLabel("Reason for goal change").fill("Private added goal reason");
+  await manager.getByLabel("Goal title", { exact: true }).fill("Our home");
+  await manager.getByLabel("Goal target amount").fill("2000");
+  await manager.getByRole("button", { name: "Save goal", exact: true }).click();
+  await expect(manager.getByRole("heading", { name: "Our home", exact: true })).toBeVisible();
+  await manager.getByLabel("Reason for goal change").fill("Private reordered goals reason");
+  await manager.getByRole("button", { name: "Move Our home up", exact: true }).click();
+  await expect(manager.locator("ol.report-list").first().locator(":scope > li").first().getByRole("heading")).toHaveText("Our home");
+  await page.getByRole("button", { name: "Publish after preview", exact: true }).click();
+  await expect(page.getByLabel("Guest wishlist link")).toHaveValue(`${origin}/w/${input.slug}`);
+  const visitor = await browser.newContext({ baseURL: origin });
+  try {
+    const guest = await visitor.newPage();
+    await guest.setViewportSize({ width: testInfo.project.name.startsWith("mobile") ? 390 : 1280, height: 900 });
+    const projection = await (await guest.request.get(`/api/public/wishlists/${input.slug}`)).json();
+    const goal = projection.goals.find((item: { title: string }) => item.title === "A quieter trip");
+    const body = { goalId: goal.id, recipientSnapshotId: projection.recipientSnapshot.id, amount: "500",
+      currency: "INR", token: randomUUID().replaceAll("-", "") + randomUUID().replaceAll("-", "") };
+    const reported = await guest.request.post(`/api/public/wishlists/${input.slug}/reports`, { data: body, headers: { Origin: origin } });
+    expect(reported.status()).toBe(200);
+    const receipt = await reported.json();
+    expect((await page.request.patch(`/api/owner/wishlists/${initial.id}/reports/${receipt.id}`, {
+      data: { status: "owner_confirmed", version: 1, reason: "Matched fictional record", acknowledged: true }, headers: { Origin: origin }
+    })).status()).toBe(200);
+    await manager.getByRole("button", { name: "Refresh wishlist", exact: true }).click();
+    await expect(manager.getByText("Target: ₹1,200. Confirmed: ₹500.")).toBeVisible();
+    await manager.getByRole("button", { name: "Edit A quieter trip", exact: true }).click();
+    await expect(manager.getByLabel("Goal title", { exact: true })).toHaveAttribute("readonly", "");
+    await manager.getByLabel("Reason for goal change").fill("Private target revision reason");
+    await manager.getByLabel("Goal target amount").fill("1500");
+    await manager.getByLabel("I acknowledge that a target change").check();
+    await page.route("**/api/owner/wishlists/*/goals", (route) => route.request().method() === "PATCH" ? route.abort("failed") : route.continue());
+    await manager.getByRole("button", { name: "Save goal", exact: true }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "server could not be reached" })).toBeVisible();
+    await expect(manager.getByLabel("Goal target amount")).toHaveValue("1500");
+    await expect(manager.getByLabel("Reason for goal change")).toHaveValue("Private target revision reason");
+    await page.unroute("**/api/owner/wishlists/*/goals");
+    await manager.getByRole("button", { name: "Save goal", exact: true }).click();
+    await expect(manager.getByText("Target: ₹1,500. Confirmed: ₹500.")).toBeVisible();
+    await manager.getByLabel("Reason for goal change").fill("Private archive reason");
+    await manager.getByRole("button", { name: "Archive A quieter trip", exact: true }).click();
+    await expect(manager.getByRole("heading", { name: "A quieter trip (archived)", exact: true })).toBeVisible();
+    expect((await guest.request.post(`/api/public/wishlists/${input.slug}/reports`, { data: body, headers: { Origin: origin } })).status()).toBe(200);
+    expect((await guest.request.post(`/api/public/wishlists/${input.slug}/reports`, {
+      data: { ...body, token: randomUUID().replaceAll("-", "") + randomUUID().replaceAll("-", "") }, headers: { Origin: origin }
+    })).status()).toBe(409);
+    await guest.goto(`/w/${input.slug}`);
+    const card = guest.getByRole("region", { name: "A quieter trip", exact: true });
+    await expect(card.getByText("Confirmed progress: ₹500")).toBeVisible();
+    await expect(card.getByText("Demo reports are unavailable for this archived goal.")).toBeVisible();
+    await card.getByText("Target changes (latest 20)", { exact: true }).click();
+    await expect(card.getByText(/₹1,200 to ₹1,500/)).toBeVisible();
+    expect(await guest.locator("body").innerText()).not.toContain("Private");
+    expect((await guest.request.get(`/api/owner/wishlists/${initial.id}/goals`)).status()).toBe(401);
+    await manager.getByText("Goal change history (private)", { exact: true }).click();
+    await manager.getByRole("button", { name: "Load latest history", exact: true }).click();
+    await expect(manager.getByText(/Private target revision reason/)).toBeVisible();
+    await manager.getByLabel("Reason for goal change").fill("Private restored goal reason");
+    await manager.getByRole("button", { name: "Restore A quieter trip", exact: true }).click();
+    await expect(manager.getByRole("heading", { name: "A quieter trip", exact: true })).toBeVisible();
+    for (const width of [320, 390, 768, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    }
+    await manager.getByRole("button", { name: "Edit A quieter trip", exact: true }).click();
+    await manager.getByLabel("Goal target amount").fill("1600");
+    await manager.getByLabel("Reason for goal change").fill("Private unsaved goal reason");
+    await manager.getByLabel("I acknowledge that a target change").check();
+    await page.context().clearCookies();
+    await manager.getByRole("button", { name: "Save goal", exact: true }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "verified account" })).toBeVisible();
+    await expect(manager.getByLabel("Goal target amount")).toHaveValue("1600");
+    await expect(manager.getByLabel("Reason for goal change")).toHaveValue("Private unsaved goal reason");
+  } finally { await visitor.close(); }
+});

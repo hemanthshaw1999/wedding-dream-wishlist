@@ -22,7 +22,7 @@ export function GuestReport({ wishlist, goal }: { wishlist: PublicWishlist; goal
   const [privateUrl, setPrivateUrl] = useState("");
   const recipient = wishlist.recipientSnapshot;
   const field = (name: string) => `${goal.id}-${name}`;
-  if (!recipient || wishlist.availability !== "available") return <p>Demo reports are unavailable for this wishlist.</p>;
+  if (!recipient || wishlist.availability !== "available" || goal.archivedAt) return <p>Demo reports are unavailable for this {goal.archivedAt ? "archived goal" : "wishlist"}.</p>;
   async function prepare(event: React.FormEvent) {
     event.preventDefault(); setError("");
     try {

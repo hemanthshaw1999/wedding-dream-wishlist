@@ -110,4 +110,5 @@ figcaption { font-size: .875rem; margin-top: 8px; }
 .totals-grid dd { font-size: 1.4rem; margin: 6px 0 0; overflow-wrap: anywhere; }
 .report-list { padding: 0; list-style: none; }
 .report-list > li { border-top: 1px solid var(--line); padding: 12px 0; overflow-wrap: anywhere; }
+summary { cursor: pointer; min-height: 46px; padding: 10px 0; overflow-wrap: anywhere; }
 @media (max-width: 480px) { .totals-grid { grid-template-columns: minmax(0, 1fr); } }

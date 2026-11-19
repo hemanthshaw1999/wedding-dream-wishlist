@@ -45,7 +45,9 @@ export class ClaimsStore {
       if (wishlist.availability !== "available") throw new AppError(409, "UNAVAILABLE", "This wishlist is not accepting demo reports.");
       const recipient = wishlist.recipientSnapshot;
       if (!recipient || recipient.id !== input.recipientSnapshotId) throw new AppError(409, "STALE_RECIPIENT", "Recipient instructions changed. Refresh and review before submitting.");
-      if (!wishlist.goals.some((goal) => goal.id === input.goalId)) throw new AppError(422, "GOAL_MISMATCH", "This goal does not belong to the wishlist.");
+      const goal = wishlist.goals.find((goal) => goal.id === input.goalId);
+      if (!goal) throw new AppError(422, "GOAL_MISMATCH", "This goal does not belong to the wishlist.");
+      if (goal.archivedAt) throw new AppError(409, "ARCHIVED", "This goal is archived and cannot accept new reports.");
       const source = await tx.get<{ id: string }>("SELECT id FROM wishlists WHERE slug=$1", [slug]);
       if (!source) throw new AppError(409, "UNAVAILABLE", "Wishlist is no longer available.");
       const duplicate = input.reference && await tx.get("SELECT id FROM contributions WHERE wishlist_id=$1 AND reference=$2 LIMIT 1", [source.id, input.reference]);
@@ -91,7 +93,7 @@ export class ClaimsStore {
   async resolve(wishlistId: string, id: string, ownerId: string, to: unknown, version: unknown, reason: unknown): Promise<OwnerClaim> {
     if (!Number.isSafeInteger(version) || Number(version) < 1 || typeof reason !== "string" || !reason.trim() || reason.trim().length > 300) throw new AppError(422, "VALIDATION", "A current version and a reason of 1-300 characters are required.");
     return this.db.transaction(async (tx) => {
-      await new WishlistStore(tx).getOwner(wishlistId, ownerId);
+      await new WishlistStore(tx).getOwner(wishlistId, ownerId, true);
       const row = await tx.get<ClaimRow>(`${selection} WHERE c.wishlist_id=$1 AND c.id=$2 FOR UPDATE OF c`, [wishlistId, id]);
       if (!row) throw new AppError(404, "NOT_FOUND", "Report not found.");
       if (row.version !== version) throw new AppError(409, "STALE_VERSION", "Another action changed this report. Refresh before trying again.");

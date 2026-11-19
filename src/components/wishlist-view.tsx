@@ -36,11 +36,18 @@ export function WishlistView({ wishlist, preview = false }: { wishlist: PublicWi
               <div className={`goal-art art-${index % 3}`} aria-hidden="true"><span>{String(index + 1).padStart(2, "0")}</span></div>
               <div className="goal-content">
                 <h3 id={`goal-${goal.id}`}>{goal.title}</h3>
+                {goal.archivedAt && <p className="pill">Archived goal - history and confirmed progress retained</p>}
                 <p className="story">{goal.description || "A meaningful part of our life together."}</p>
                 <p className="goal-amount">{formatINR(goal.targetPaise)} <span>target</span></p>
                 <label className="progress-label" htmlFor={`progress-${goal.id}`}>Confirmed progress: {formatINR(goal.confirmedPaise)}</label>
                 <progress id={`progress-${goal.id}`} value={Math.min(goal.confirmedPaise, goal.targetPaise)} max={goal.targetPaise} />
                 <p className="muted">Owner-confirmed demo reports only—not bank/provider verified. Pending reports never count. Simulated overfunding is shown in full; the live funding policy remains undecided.</p>
+                {goal.targetHistory.length > 0 && <details>
+                  <summary>Target changes (latest 20)</summary>
+                  <ol>{goal.targetHistory.map((change) => <li key={change.version}>
+                    {change.createdAt}: {formatINR(change.previousPaise)} to {formatINR(change.targetPaise)}
+                  </li>)}</ol>
+                </details>}
                 {!preview && <GuestReport wishlist={wishlist} goal={goal} />}
               </div>
             </section>

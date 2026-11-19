@@ -6,6 +6,8 @@
 
 **Current increment:** real **PostgreSQL 18.7** persistence, restricted runtime role, concurrent/idempotent gift reports, audited confirmation/reversal and tested native backup/restore. Self-hosted **Better Auth 1.7.21 (MIT)** now also supports HTTPS-only production configuration and an encrypted, leased authentication-email queue. Local delivery remains a private fictional mailbox; the Resend adapter has only used a mocked transport, never real email. **See `docs/current-increment.md` for current results and launch blockers.**
 
+**Goal management implemented:** owner-scoped add/edit/reorder/archive/restore, immutable revisions, public target-change history and preserved financial records. Reported purpose cannot be rewritten; target changes require acknowledgement and cannot fall below current confirmed progress. Node 24 validation: **122 unit/integration tests and 8 desktop/mobile browser journeys passed**, plus lint/type-check/build.
+
 ## What actually runs
 
 This project was created using GitHub Copilot CLI on Windows, not the Microsoft 365 Copilot application. No subscription entitlement was inspected or inferred. Java was not on PATH. Docker's executable exists but the checked daemon is unavailable. No cloud account, workplace repository, remote database, paid infrastructure or deployment was used.
@@ -179,7 +181,7 @@ docs/                                  decisions, schema, API, threat model, tes
 ## Implemented boundaries and honest limitations
 
 - INR is parsed from plain decimal strings into safe, bounded integer paise. Targets: INR 0.01 to INR 1,00,00,000. Currency and owner/payment overrides are rejected.
-- Up to 20 goals; bounded text/body sizes. No remote image fetching, uploads, HTML rendering, marketing, analytics or payment APIs. The disabled email adapter uses only a fixed provider endpoint after separate approval.
+- Up to 20 retained goals, including archived goals; bounded text/body sizes. No remote image fetching, uploads, HTML rendering, marketing, analytics or payment APIs. The disabled email adapter uses only a fixed provider endpoint after separate approval.
 - App/auth mutations require matching Host/Origin plus JSON. Token-protected auth verification/recovery GETs are maintained-library link ceremonies. Owner operations require an unexpired Better Auth session with verified email. Ownership is independent of display names; real HTTP cross-account isolation is tested.
 - Guest reports are unverified. Only explicit authenticated owner confirmation adds to demo progress. Reversal appends an opposite ledger effect; no existing event is deleted. Duplicate references trigger review, never proof.
 - Demo report limits: INR 1 to INR 1,00,000. A 256-bit private key is also its idempotency key; only its hash is stored. Names/messages stay private; aggregate progress may allow amount inference. Private status expires after seven days.

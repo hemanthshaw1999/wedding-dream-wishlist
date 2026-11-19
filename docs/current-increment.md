@@ -157,10 +157,44 @@ Inline **styles** remain permitted for React progress widths and existing stylin
 
 After CSP changes, focused proxy/HTTP tests passed **10/10**, lint/typecheck and optimized build passed. Four browser cases passed initially; the two updated gift journeys then passed on desktop/mobile after making the injection check operate on actual HTML before browser parsing rather than a DevTools-executed probe. These tests check browser-enforced blocking of a non-nonced parser-inserted script, matching framework nonces and a complete hydrated account/QR/report/confirmation journey. A separate actual Node 24 development-server check passed: interactive account form, received HMR WebSocket frame and zero observed page errors. Its temporary server was stopped.
 
+## Goal-management increment
+
+Implemented owner-only add/edit/reorder/archive/restore APIs and responsive controls. Every
+mutation checks a current wishlist version and bounded private reason; closed, archived or
+expired wishlists reject changes. The limit is 20 retained goals including archived goals,
+not 20 active goals with silently discarded historical records. SQL row locks serialize
+goal changes, report creation and manual confirmation; concurrent stale writes fail.
+
+Additive migration 005 adds archive state, per-goal versions, deferred position uniqueness,
+append-only history and automatic owner/reason/snapshot triggers. Existing goals receive an
+explicit migration baseline, not fabricated historical authorship. Goals and history cannot
+be hard-deleted through the supported runtime. Applied migrations 001-004 are unchanged.
+
+Any guest report freezes goal title/description, including reports later rejected. Target
+changes after reports require explicit acknowledgement and cannot reduce the target below
+current net confirmed progress. Later confirmations can still produce truthful demo
+overfunding. Archiving blocks new reports but preserves existing private retries, reviews
+and confirmed totals; restoring enables fresh reports again. Target changes remain publicly
+visible (latest 20 per goal), without private reasons/actors. Owner history displays the
+latest 100 full changes, explicitly retaining older database rows.
+
+The owner UI uses fresh server props after refresh without silently overwriting unsaved
+forms. Editing captures an optimistic version; adopting a newer version requires an explicit
+review action. Offline and expired-session errors preserve form inputs. Keyboard move
+buttons support reordering without dragging. Native restore now checks goal/revision
+snapshots as well as table counts and financial balances.
+
+Actual Node 24 validation: **122/122 unit/integration tests across 10 files**, **8/8
+desktop/mobile browser journeys**, lint, type-check and optimized build passed. Tests cover
+restricted-runtime triggers, migration-4 baseline backfill, transactional rollback, tenant
+isolation, stale versions, report/archive and confirmation/target races, bounded projections,
+mobile layouts down to 320px, private-history non-disclosure and offline/session failures.
+No new full-product security review, real device, live UPI or hosted delivery is claimed.
+
 ## Remaining release blockers / uncovered risks
 
 Local PostgreSQL is implemented; hosted provisioning, separate hosted failure domains and off-instance disaster recovery remain unimplemented. There is no application/runtime SQLite dependency. Working local accounts/reporting do not authorize public deployment.
 
-Live UPI-ID/QR setup, safe QR-image decoding/re-encoding if selected, recipient reauthentication/change history, stale instructions, actual hosted verification/recovery delivery/worker scheduling, legal/privacy review, actual retention/deletion, goal editing/history, moderation/support, deployed TLS/security-header validation, encrypted off-instance backups/restore, broader load/browser/accessibility/security review and provider-specific hosting approval remain. Live overfunding policy still needs a decision. No money or screenshots are moved/uploaded, no external messages sent.
+Live UPI-ID/QR setup, safe QR-image decoding/re-encoding if selected, recipient reauthentication/change history, stale instructions, actual hosted verification/recovery delivery/worker scheduling, legal/privacy review, actual retention/deletion, moderation/support, deployed TLS/security-header validation, encrypted off-instance backups/restore, broader load/browser/accessibility/security review and provider-specific hosting approval remain. Live overfunding policy still needs a decision. No money or screenshots are moved/uploaded, no external messages sent.
 
 Self-hosted open-source auth is free software, not free hosting or a security guarantee. Local credential files, cluster files and backups are accessible to trusted filesystem users; library session/verification data follow the library's format (do not assume all tokens are hashed). Keep data, backups and auth secrets out of source control.

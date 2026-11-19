@@ -13,7 +13,7 @@ try {
   await database.ready();
   const migration = await database.get("SELECT max(version) AS version FROM schema_migrations");
   const version = Number(migration?.version);
-  if (!Number.isSafeInteger(version) || version < 4) throw new Error("Production database migrations are incomplete.");
+  if (!Number.isSafeInteger(version) || version < 5) throw new Error("Production database migrations are incomplete.");
   await database.close(); database = undefined;
   const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "--hostname", "0.0.0.0", "--port", String(port)], {
     stdio: "inherit", env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1" }

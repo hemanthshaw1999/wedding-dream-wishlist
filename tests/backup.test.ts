@@ -26,6 +26,10 @@ it("restores nonempty authentication and confirmed ledger data from a consistent
     const claim = await claims.report(wishlist.slug, validateClaim({ goalId: wishlist.goals[0].id,
       recipientSnapshotId: wishlist.recipientSnapshot?.id, amount: "500", currency: "INR", token: randomBytes(32).toString("hex") }));
     await claims.resolve(wishlist.id, claim.id, "owner", "owner_confirmed", 1, "Synthetic fixture only");
+    await store.changeGoals(wishlist.id, "owner", { action: "edit", goalId: wishlist.goals[0].id,
+      title: wishlist.goals[0].title, target: "1200", version: 2, acknowledged: true, reason: "Synthetic target revision" });
+    await store.changeGoals(wishlist.id, "owner", { action: "archive", goalId: wishlist.goals[0].id, version: 3, reason: "Keep archived financial history" });
+    expect((await store.goalHistory(wishlist.id, "owner")).entries).toHaveLength(3);
     const origin = "http://127.0.0.1:4317";
     const auth = createAuth({ database: db, origin, secret: randomBytes(48).toString("hex") });
     const signup = await auth.handler(new Request(`${origin}/api/auth/sign-up/email`, { method: "POST",

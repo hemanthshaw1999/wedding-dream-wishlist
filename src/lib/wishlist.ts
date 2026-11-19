@@ -9,7 +9,27 @@ export type Goal = {
   description: string;
   targetPaise: number;
   confirmedPaise: number;
+  archivedAt: string | null;
+  targetHistory: { version: number; previousPaise: number; targetPaise: number; createdAt: string }[];
 };
+export type NewGoal = { title: string; description: string; targetPaise: number };
+export type OwnerGoal = Goal & { hasReports: boolean };
+export type GoalSnapshot = {
+  title: string; description: string; targetPaise: number; position: number; archivedAt: string | null;
+};
+export type GoalHistoryPage = {
+  entries: {
+    goalId: string; version: number; event: string; reason: string; createdAt: string;
+    before: GoalSnapshot | null; after: GoalSnapshot;
+  }[];
+  hasMore: boolean;
+};
+export type GoalCommand = { version: number; reason: string } & (
+  { action: "add"; goal: NewGoal } |
+  { action: "edit"; goalId: string; goal: NewGoal; acknowledged: boolean } |
+  { action: "archive" | "restore"; goalId: string } |
+  { action: "reorder"; goalIds: string[] }
+);
 export type PublicWishlist = {
   slug: string;
   displayNames: string;
@@ -22,11 +42,12 @@ export type PublicWishlist = {
   recipientSnapshot: { id: string; label: string; mode: "demo" } | null;
   goals: Goal[];
 };
-export type OwnerWishlist = PublicWishlist & {
+export type OwnerWishlist = Omit<PublicWishlist, "goals"> & {
   id: string;
   state: WishlistState;
   visibility: Visibility;
   version: number;
+  goals: OwnerGoal[];
 };
 export type NewWishlist = {
   displayNames: string;
@@ -35,7 +56,7 @@ export type NewWishlist = {
   expiresAt: string | null;
   slug: string;
   visibility: Visibility;
-  goals: { title: string; description: string; targetPaise: number }[];
+  goals: NewGoal[];
 };
 
 function text(value: unknown, name: string, max: number, required = true): string {
@@ -48,6 +69,51 @@ function text(value: unknown, name: string, max: number, required = true): strin
 function record(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new AppError(422, "VALIDATION", "Expected an object.");
   return input as Record<string, unknown>;
+}
+
+export function validateGoal(input: unknown, prefix = ""): NewGoal {
+  const goal = record(input);
+  if (Object.keys(goal).some((key) => !["title", "description", "target"].includes(key))) {
+    throw new AppError(422, "VALIDATION", "Unknown goal fields are not accepted.");
+  }
+  let targetPaise: number;
+  try { targetPaise = parseINR(goal.target); }
+  catch (error) {
+    if (!(error instanceof AppError)) throw error;
+    throw new AppError(422, error.code, error.message, { [`${prefix}target`]: error.message });
+  }
+  return {
+    title: text(goal.title, `${prefix}title`, 100),
+    description: text(goal.description ?? "", `${prefix}description`, 1000, false),
+    targetPaise
+  };
+}
+
+export function validateGoalCommand(input: unknown): GoalCommand {
+  const data = record(input);
+  const fields: Record<string, string[]> = {
+    add: ["title", "description", "target"], edit: ["goalId", "title", "description", "target", "acknowledged"],
+    archive: ["goalId"], restore: ["goalId"], reorder: ["goalIds"]
+  };
+  if (typeof data.action !== "string" || !Object.hasOwn(fields, data.action) ||
+    Object.keys(data).some((key) => !["action", "version", "reason", ...fields[data.action as string]].includes(key))) {
+    throw new AppError(422, "VALIDATION", "Send a supported goal action and only its documented fields.");
+  }
+  if (!Number.isSafeInteger(data.version) || Number(data.version) < 1) throw new AppError(422, "VALIDATION", "A valid wishlist version is required.");
+  const base = { version: Number(data.version), reason: text(data.reason, "reason", 300) };
+  if (data.action === "add" || data.action === "edit") {
+    const goal = validateGoal({ title: data.title, description: data.description, target: data.target });
+    if (data.action === "add") return { ...base, action: "add", goal };
+    if (data.acknowledged !== undefined && typeof data.acknowledged !== "boolean") throw new AppError(422, "VALIDATION", "Acknowledgement must be a boolean.");
+    return { ...base, action: "edit", goalId: text(data.goalId, "goalId", 100), goal, acknowledged: data.acknowledged === true };
+  }
+  if (data.action === "archive" || data.action === "restore") {
+    return { ...base, action: data.action, goalId: text(data.goalId, "goalId", 100) };
+  }
+  if (!Array.isArray(data.goalIds) || data.goalIds.length < 1 || data.goalIds.length > 20) throw new AppError(422, "VALIDATION", "Send every goal ID exactly once.");
+  const goalIds = data.goalIds.map((id) => text(id, "goalIds", 100));
+  if (new Set(goalIds).size !== goalIds.length) throw new AppError(422, "VALIDATION", "Duplicate goal IDs are not allowed.");
+  return { ...base, action: "reorder", goalIds };
 }
 
 function dateOnly(value: unknown, field: string): string | null {
@@ -92,23 +158,7 @@ export function validateWishlist(input: unknown, now = new Date()): NewWishlist 
     expiresAt,
     slug,
     visibility: data.visibility as Visibility,
-    goals: data.goals.map((inputGoal, index) => {
-      const goal = record(inputGoal);
-      if (Object.keys(goal).some((key) => !["title", "description", "target"].includes(key))) {
-        throw new AppError(422, "VALIDATION", "Unknown goal fields are not accepted.");
-      }
-      let targetPaise: number;
-      try { targetPaise = parseINR(goal.target); }
-      catch (error) {
-        if (!(error instanceof AppError)) throw error;
-        throw new AppError(422, error.code, error.message, { [`goals.${index}.target`]: error.message });
-      }
-      return {
-        title: text(goal.title, `goals.${index}.title`, 100),
-        description: text(goal.description ?? "", `goals.${index}.description`, 1000, false),
-        targetPaise
-      };
-    })
+    goals: data.goals.map((goal, index) => validateGoal(goal, `goals.${index}.`))
   };
 }
 

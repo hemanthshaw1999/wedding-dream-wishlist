@@ -24,7 +24,7 @@ function command(program: string, args: string[], connectionString: string): Pro
     child.once("exit", (code) => code === 0 ? resolveCommand() : reject(new Error(`${program} failed with exit ${code}; database output was withheld to protect private data.`)));
   });
 }
-const tables = ["wishlists", "goals", "memberships", "audit_entries", "recipient_snapshots",
+const tables = ["wishlists", "goals", "goal_history", "memberships", "audit_entries", "recipient_snapshots",
   "contributions", "claim_events", "auth_users", "auth_sessions", "auth_accounts", "auth_verifications", "auth_local_outbox",
   "auth_email_outbox", "auth_email_budgets"] as const;
 try {
@@ -46,6 +46,10 @@ try {
       const mismatches = await restored.db.all(`SELECT c.id FROM contributions c LEFT JOIN claim_events e ON e.contribution_id=c.id
         GROUP BY c.id HAVING COALESCE(SUM(e.confirmed_delta_paise),0)<>CASE WHEN c.status='owner_confirmed' THEN c.amount_paise ELSE 0 END`);
       if (mismatches.length) throw new Error("Restored ledger does not match contribution states.");
+      const goalMismatches = await restored.db.all(`SELECT g.id FROM goals g LEFT JOIN goal_history h
+        ON h.goal_id=g.id AND h.version=g.version WHERE h.goal_id IS NULL OR h.after_snapshot IS DISTINCT FROM to_jsonb(g)
+        OR g.version<>(SELECT max(version) FROM goal_history WHERE goal_id=g.id)`);
+      if (goalMismatches.length) throw new Error("Restored goals do not match their immutable revision history.");
       if ((await restored.db.get("SELECT value FROM app_metadata WHERE key='environment'"))?.value !== "synthetic-demo-only") throw new Error("Restored environment marker changed.");
     });
     console.log(`PostgreSQL consistent-snapshot backup, isolated restore, row-count and ledger checks passed: ${backupPath}`);

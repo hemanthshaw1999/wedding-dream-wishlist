@@ -2,7 +2,7 @@
 
 **Status: implemented local application, not production-ready or publicly deployed.**
 This handoff supplies placeholders and expectations; it does not certify unfinished code.
-Configuration alone cannot enable real UPI, implement goal management or deploy a worker.
+Configuration alone cannot enable real UPI, implement account privacy workflows or deploy a worker.
 No real credentials, payment addresses or customer data belong in this document.
 
 Private repository: https://github.com/hemanthshaw1999/wedding-dream-wishlist
@@ -100,7 +100,7 @@ real passwords. Test restoration with access to separately protected required ke
 `npm start` and `npm run dev` are intentionally **local demo launchers**, not hosting commands.
 The standalone production entrypoint is `npm run start:production`; it validates auth/email,
 database marker, restricted role and schema version before listening. Current schema versions
-are 001-004. Raise required-version checks when adding migrations; never rewrite applied SQL.
+are 001-005. Raise required-version checks when adding migrations; never rewrite applied SQL.
 
 A Next.js serverless adapter may bypass that standalone entrypoint. Implement equivalent
 deployment/readiness checks for the selected adapter and verify its CSP nonce propagation,
@@ -127,42 +127,48 @@ current code reads**. Collect sensitive recipient data only through the finished
 | `<backup-destination-and-key>` | Approved encrypted off-instance storage with separate key/access controls | Implement production backup/restore and retention. Current `demo:backup` deliberately refuses production data; do not remove its guard to claim production backups. |
 | `<recovery-and-availability-targets>` | Owner-approved RPO/RTO, incident contact and acceptable free-tier downtime | Measure isolated restore and outage recovery. One database/free host is not high availability; app restart survival is not disk/region-loss protection. |
 
+## Implemented after the initial handoff
+
+Goal add/edit/reorder/archive/restore is now implemented and tested through owner-scoped
+APIs and responsive controls. Migration 005 adds trigger-enforced immutable revision history
+and explicit baselines for older goals. Reported titles/descriptions freeze permanently;
+target edits require acknowledgement and cannot fall below current confirmed progress.
+Archive retains private receipts, financial records and totals, but blocks fresh reports.
+Reorders include all retained goals; the 20-goal limit includes archived goals.
+
+Public cards show at most the latest 20 target revisions, without private reasons or actors.
+Owner history shows the latest 100 full changes with reasons; older rows remain in PostgreSQL.
+Financial confirmation, reporting and goal mutations share a parent-lock order.
+Native restore verifies goal/revision snapshots as well as counts and contribution balances.
+
 ## Implementation still required
 
 These are real code tasks, not missing credentials. Finish them before representing the
 application as production-ready. Existing local flows must remain usable while work proceeds.
 
-1. **Goal management and historical purpose.** Add/edit/reorder/archive/restore goals through
-   owner-scoped APIs and accessible desktop/mobile controls. Use additive PostgreSQL migrations,
-   immutable history, bounded projections and optimistic versions. Preserve contribution links
-   and confirmed progress on archive; disallow new reports for archived goals. Make post-report
-   purpose/target changes explicit and auditable, never silently rewrite a guest's historical
-   terms. Reject a changed target below current net confirmed value. Serialize goal mutations,
-   new reports and confirmations using a consistent database lock order; test races/rollbacks.
-   Keep private owner reasons/identities out of public target-history projections.
-2. **Live direct-UPI vertical slice.** Implement authenticated recipient setup, recent
+1. **Live direct-UPI vertical slice.** Implement authenticated recipient setup, recent
    reauthentication, immutable versioned recipient/instruction snapshots, reviewed live
    activation and stale-instruction/late-report behavior. Preserve existing idempotent private
    receipts even after pause/archive. Guests may report an amount they actually paid; no
    platform charge is required. Screenshots are optional unverified evidence only; leave
    uploads disabled unless a private, bounded, safe upload/retention pipeline is implemented.
    Never retroactively switch published demo histories into real-money histories.
-3. **Privacy, safety and support.** Implement account export/deletion with session revocation,
+2. **Privacy, safety and support.** Implement account export/deletion with session revocation,
    actual retention jobs, abuse reporting/moderation and least-privilege support operations.
    Keep financial corrections append-only. Preserve CSV formula-injection defense and private
    guest status. Unlisted links are bearer links, not authenticated privacy; disclose this.
    Do not add analytics, public donor identities or external image fetching by default.
-4. **Deployable web and worker.** Add tested provider-specific configuration for the chosen
+3. **Deployable web and worker.** Add tested provider-specific configuration for the chosen
    supported Node 24 runtime, migration job and bounded email scheduler. Check serverless
    startup/readiness, concurrency/pool budgets and strict origin/cookie/CSP/cache behavior.
    Monitor queue age, expired/failed/unknown jobs and delivery quotas without logging personal
    payloads. Do not label an unscheduled CLI or mocked transport as working production email.
-5. **Production recovery and operations.** Implement encrypted off-instance backups, scheduled
+4. **Production recovery and operations.** Implement encrypted off-instance backups, scheduled
    restore checks, non-sensitive readiness/monitoring, redacted incident logs and a release/
    compatible-app-rollback runbook. Preserve environment markers and ledger constraints on
    restore. Back up before migrations. A restored instance must be isolated from live email
    and public traffic until deliberately approved.
-6. **Release assurance.** Add focused regression tests for new behavior and actual CI.
+5. **Release assurance.** Add focused regression tests for new behavior and actual CI.
    Exercise owner/guest isolation, auth abuse/session expiry, INR parsing, idempotency, ledger
    reconciliation, concurrent target/report/confirmation changes, stale/offline retries,
    keyboard/accessibility, 320px/mobile layouts and real-device/browser/slow-network flows.
@@ -180,11 +186,11 @@ The existing evidence is local and synthetic, not a hosted acceptance certificat
 
 | Check | Last recorded evidence before this documentation handoff |
 |---|---|
-| Full Node 24 unit/integration suite | 104 passing tests across 8 files before the final two CSP tests were added. |
-| Focused HTTP/CSP suite | 10 passing tests, including the two new nonce tests; not a new full-suite result. |
-| Desktop/mobile browser journeys | Six existing journeys covered after CSP hardening; the two changed full-gift journeys were rerun successfully after correcting the parser-injection probe. |
+| Full Node 24 unit/integration suite | 122 passing tests across 10 files after the goal-management increment, including CSP, real PostgreSQL races and native restore. |
+| Focused goal/claim/store suite | 52 passing tests before the final full-suite run. |
+| Desktop/mobile browser journeys | All eight journeys passed together, including owner goal controls, public target history, archived-report denial and preserved input after offline/session failures. |
 | Lint, TypeScript, optimized build | Passed on Node 24; nonce-dependent pages dynamically render. |
-| PostgreSQL durability and restore | Project-process restart preserved synthetic counts; native isolated restore includes auth, confirmed ledger and encrypted queued-email fixtures. Not off-instance disaster recovery. |
+| PostgreSQL durability and restore | Project-process restart preserved synthetic counts; native isolated restore includes auth, confirmed ledger, edited/archived goal history and encrypted queued-email fixtures. Not off-instance disaster recovery. |
 | Production dependency audit | Zero reported advisories at last check; not a guarantee or a development-dependency audit. Recheck before release. |
 | Prior security review | No findings in the scoped auth/email increment. Not a full-product review; deployed TLS/Host/Origin/cache, role provisioning and real email remain unverified. |
 | Live deployment, inbox delivery, UPI | Not performed. No cloud accounts/resources, real provider transport, payable UPI instructions or public launch are configured. |

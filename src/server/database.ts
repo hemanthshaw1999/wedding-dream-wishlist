@@ -103,7 +103,7 @@ export async function migrate(db: Database, environment: DatabaseEnvironment) {
       if (marker?.value !== environment) throw new Error("Database environment does not match; no migration applied.");
     }
     await tx.run("CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())");
-    for (const [version, file] of [[1, "001_core.sql"], [2, "002_auth.sql"], [3, "003_optional_timestamp.sql"], [4, "004_auth_email.sql"]] as const) {
+    for (const [version, file] of [[1, "001_core.sql"], [2, "002_auth.sql"], [3, "003_optional_timestamp.sql"], [4, "004_auth_email.sql"], [5, "005_goal_history.sql"]] as const) {
       if (!await tx.get("SELECT version FROM schema_migrations WHERE version=$1", [version])) {
         await tx.run(readFileSync(resolve("migrations", "postgres", file), "utf8"));
         if (version === 1) await tx.run("INSERT INTO app_metadata VALUES('environment',$1)", [environment]);
@@ -117,7 +117,7 @@ export async function grantRuntime(db: Database, role: string) {
   if (!/^[a-z][a-z0-9_]{0,62}$/.test(role)) throw new Error("An explicit restricted database runtime role is required.");
   await db.run(`GRANT USAGE ON SCHEMA public TO "${role}"`);
   for (const table of ["app_metadata", "schema_migrations"]) await db.run(`GRANT SELECT ON ${table} TO "${role}"`);
-  for (const table of ["users", "memberships", "audit_entries", "recipient_snapshots", "claim_events"]) await db.run(`GRANT SELECT,INSERT ON ${table} TO "${role}"`);
+  for (const table of ["users", "memberships", "audit_entries", "recipient_snapshots", "claim_events", "goal_history"]) await db.run(`GRANT SELECT,INSERT ON ${table} TO "${role}"`);
   for (const table of ["wishlists", "goals", "contributions"]) await db.run(`GRANT SELECT,INSERT,UPDATE ON ${table} TO "${role}"`);
   for (const table of ["auth_users", "auth_sessions", "auth_accounts", "auth_verifications", "auth_rate_limits", "rate_limits", "auth_local_outbox", "auth_email_outbox", "auth_email_budgets"]) {
     await db.run(`GRANT SELECT,INSERT,UPDATE,DELETE ON ${table} TO "${role}"`);

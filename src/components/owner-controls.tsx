@@ -8,10 +8,12 @@ import { useRef, useState } from "react";
 import type { OwnerWishlist, WishlistState } from "@/lib/wishlist";
 import { en } from "@/lib/strings";
 import { requestJson, RequestError } from "./client-api";
+import { OwnerGoals } from "./owner-goals";
 
 export function OwnerControls({ wishlist, origin }: { wishlist: OwnerWishlist; origin: string }) {
   const router = useRouter();
-  const [current, setCurrent] = useState(wishlist);
+  const [updated, setUpdated] = useState<{ source: OwnerWishlist; value: OwnerWishlist } | null>(null);
+  const current = updated && !(wishlist !== updated.source && wishlist.version >= updated.value.version) ? updated.value : wishlist;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -31,12 +33,26 @@ export function OwnerControls({ wishlist, origin }: { wishlist: OwnerWishlist; o
     setBusy(true); setError(""); setMessage("");
     try {
       const result = await requestJson<OwnerWishlist>(`/api/owner/wishlists/${current.id}`, "PATCH", { state, version: current.version });
-      setCurrent(result);
+      setUpdated({ source: wishlist, value: result });
       setMessage(`Wishlist is now ${result.state}.`);
       router.refresh();
     } catch (error) {
       setError(error instanceof Error ? error.message : "Could not update wishlist.");
       if (error instanceof RequestError && error.status === 401) setSessionExpired(true);
+    } finally { setBusy(false); }
+  }
+  async function changeGoals(command: Record<string, unknown>) {
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const result = await requestJson<OwnerWishlist>(`/api/owner/wishlists/${current.id}/goals`, "PATCH", command);
+      setUpdated({ source: wishlist, value: result });
+      setMessage("Goals updated. Historical reports and confirmed progress are preserved.");
+      router.refresh();
+      return true;
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Could not update goals.");
+      if (error instanceof RequestError && error.status === 401) setSessionExpired(true);
+      return false;
     } finally { setBusy(false); }
   }
   async function copy() {
@@ -55,7 +71,7 @@ export function OwnerControls({ wishlist, origin }: { wishlist: OwnerWishlist; o
     } catch { setError("QR generation failed. You can still copy the wishlist link."); }
   }
   return (
-    <section className="panel owner-controls" aria-labelledby="controls-title">
+    <><section className="panel owner-controls" aria-labelledby="controls-title">
       <h2 id="controls-title">Preview and publication</h2>
       <p><strong>Current state: {current.state}.</strong> Visibility: {current.visibility}.</p>
       <p>{en.demo} Publishing here only enables anonymous access on this computer; it does not deploy the app.</p>
@@ -81,5 +97,6 @@ export function OwnerControls({ wishlist, origin }: { wishlist: OwnerWishlist; o
         </div>
       )}
     </section>
+    <OwnerGoals wishlist={current} busy={busy} onChange={changeGoals} onRefresh={() => router.refresh()} /></>
   );
 }
