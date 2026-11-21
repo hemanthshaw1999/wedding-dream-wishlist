@@ -116,7 +116,7 @@ describe("PostgreSQL manual reports and reproducible truthful progress", () => {
   it("expires scoped private status links without exposing other guests", async () => {
     const input = report(); const entry = await claims.report(wishlist.slug, input);
     expect((await claims.status(input.token)).id).toBe(entry.id);
-    await expect(claims.status(randomBytes(32).toString("hex"))).rejects.toThrow("not available");
+    await expect(claims.status(randomBytes(32).toString("hex"))).rejects.toThrow("This gift was not found");
     vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date(Date.now() + 8 * 86_400_000));
     await expect(claims.status(input.token)).rejects.toThrow("expired");
   });
