@@ -8,7 +8,7 @@ import { requestJson } from "./client-api";
 import { ConfirmAction } from "./confirm-action";
 import { useRequestLock } from "./use-request-lock";
 
-export function ClaimsDashboard({ wishlistId, initial, live = false, production = false }: { wishlistId: string; initial: ClaimDashboard; live?: boolean; production?: boolean }) {
+export function ClaimsDashboard({ wishlistId, initial }: { wishlistId: string; initial: ClaimDashboard; live?: boolean; production?: boolean }) {
   const router = useRouter();
   const [loaded, setLoaded] = useState<ClaimDashboard | null>(null);
   const [filter, setFilter] = useState("all");
@@ -16,6 +16,7 @@ export function ClaimsDashboard({ wishlistId, initial, live = false, production 
   const data = loaded && (!defaultView || loaded.revision >= initial.revision) ? loaded : initial;
   const changedFilteredView = Boolean(!defaultView && loaded && initial.revision > loaded.revision);
   const [reason, setReason] = useState("");
+  const [reviewing, setReviewing] = useState<string | null>(null);
   const [acknowledged, setAcknowledged] = useState(false);
   const { busy, start, finish } = useRequestLock();
   const [error, setError] = useState("");
@@ -47,45 +48,45 @@ export function ClaimsDashboard({ wishlistId, initial, live = false, production 
       return true;
     } catch (error) {
       setRefreshFailed(true);
-      setError(saved ? "The review was saved, but reports could not refresh. Refresh reports before another action."
+      setError(saved ? "The review was saved, but reports could not refresh. Refresh before another action."
         : error instanceof Error ? error.message : "Update outcome unknown. Refresh before retrying.");
       return saved;
     } finally { if (saved) router.refresh(); finish(); }
   }
   return <section className="panel claims-dashboard" aria-labelledby="reports-title">
-    <h2 id="reports-title">Guest reports and manual confirmation</h2>
-    <p><strong>{live ? "Live direct UPI - manual confirmation only." : production ? "Manual confirmation only." : "Demo - no real money."}</strong> Never confirm from a screenshot or reference alone. For live direct UPI, compare against your own bank records. The platform cannot verify a bank transfer or refund money it never handled.</p>
+    <h2 id="reports-title">Gifts from guests</h2>
+    <p>Check each gift in your own bank or UPI app before you confirm it. A screenshot or reference isn&apos;t proof, and this app can&apos;t see your account.</p>
     <dl className="totals-grid">
-      <div><dt>Reported, not confirmed</dt><dd>{formatINR(data.totals.reportedPaise)}</dd></div>
-      <div><dt>Needs review</dt><dd>{formatINR(data.totals.needsReviewPaise)}</dd></div>
-      <div><dt>{live || production ? "Owner-confirmed reports" : "Owner-confirmed demo reports"}</dt><dd>{formatINR(data.totals.ownerConfirmedPaise)}</dd></div>
-      <div><dt>Rejected reports</dt><dd>{formatINR(data.totals.rejectedPaise)}</dd></div>
+      <div><dt>Waiting for you</dt><dd>{formatINR(data.totals.reportedPaise)}</dd></div>
+      <div><dt>Needs a second look</dt><dd>{formatINR(data.totals.needsReviewPaise)}</dd></div>
+      <div><dt>Confirmed</dt><dd>{formatINR(data.totals.ownerConfirmedPaise)}</dd></div>
+      <div><dt>Declined</dt><dd>{formatINR(data.totals.rejectedPaise)}</dd></div>
     </dl>
-    <p>No provider-confirmed, settled or refunded funds exist{live || production ? "; the app never handles the money" : " in this demo"}.</p>
-    <label htmlFor="report-filter">Filter reports</label><select id="report-filter" value={filter} disabled={busy} onChange={(e) => refresh(e.target.value, 1)}>{["all", "reported", "needs_review", "owner_confirmed", "rejected"].map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</select>
-    <div className="actions"><button className="button secondary" disabled={busy} onClick={() => refresh()}>Refresh reports</button><a href={`/api/owner/wishlists/${wishlistId}/reports/export`}>Export private CSV (up to 5,000 rows)</a></div>
-    {(refreshFailed || changedFilteredView) && <p className="notice">These reports may be out of date. Refresh reports before reviewing another gift.</p>}
-    {(filter !== "all" || data.page !== 1) && <p className="muted">Filtered and paginated reports update when you refresh or review a report.</p>}
-    <label htmlFor="review-reason">Reason for next review action (required)</label><textarea id="review-reason" disabled={busy} maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} />
-    <label className="checkbox-label"><input type="checkbox" disabled={busy} checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} /> I understand confirmation is manual, not bank verification.</label>
-    <small>Enter a fresh reason and acknowledgement for each confirmation.</small>
-    {error && !confirmClaim && <p role="alert" className="error-box">{error}</p>}<p role="status">{message}</p>
-    {!data.claims.length && <p>No reports match this filter. Reported gifts will appear here privately.</p>}
+    <label htmlFor="report-filter">Show</label><select id="report-filter" value={filter} disabled={busy} onChange={(e) => refresh(e.target.value, 1)}>{["all", "reported", "needs_review", "owner_confirmed", "rejected"].map((value) => <option key={value} value={value}>{({all:"All",reported:"Waiting",needs_review:"Needs a second look",owner_confirmed:"Confirmed",rejected:"Declined"} as Record<string,string>)[value]}</option>)}</select>
+    <div className="actions"><button className="button secondary" disabled={busy} onClick={() => refresh()}>Refresh</button><details><summary>Export</summary><a href={`/api/owner/wishlists/${wishlistId}/reports/export`}>Export private CSV (up to 5,000 rows)</a></details></div>
+    {(refreshFailed || changedFilteredView) && <p className="notice">This list may be out of date. Refresh before reviewing another gift.</p>}
+    {(filter !== "all" || data.page !== 1) && <p className="muted">This view updates when you refresh.</p>}
+        {error && !confirmClaim && <p role="alert" className="error-box">{error}</p>}<p role="status">{message}</p>
+    {!data.claims.length && <p>No gifts here yet.</p>}
     <ul className="report-list">{data.claims.map((claim) => <li key={claim.id}>
       <h3>{formatINR(claim.amountPaise)} - {claim.guestName || "Name not provided"}{claim.publicDisplay ? " (chose to show publicly once confirmed)" : ""}</h3>
-      <p>{claim.goalTitle} / {claim.status.replaceAll("_", " ")}</p>
-      <p className="story">{claim.guestMessage || "No message."}</p>
-      <p>Reference: {claim.reference || "Not provided"}. <small>{claim.id}</small></p>
-      {claim.duplicateReference && <p className="error-box">Duplicate reference: review required. References can be forged.</p>}
+      <p>{claim.goalTitle} · {({reported:"Waiting",needs_review:"Needs a second look",owner_confirmed:"Confirmed",rejected:"Declined"} as Record<string,string>)[claim.status] ?? claim.status}</p>
+      {claim.guestMessage && <p className="story">{claim.guestMessage}</p>}
+      {claim.reference && <p>Reference: {claim.reference}</p>}
+      {claim.duplicateReference && <p className="error-box">This reference matches another gift. Take a second look.</p>}
+      <button type="button" className="button secondary" disabled={busy} aria-expanded={reviewing === claim.id} onClick={() => { setReviewing(reviewing === claim.id ? null : claim.id); setReason(""); setAcknowledged(false); }}>Review gift</button>
+      {reviewing === claim.id && <div className="review-panel">
+    <label htmlFor="review-reason">Note for your records (required)</label><textarea id="review-reason" disabled={busy} maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} />
+    <label className="checkbox-label"><input type="checkbox" disabled={busy} checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} /> I have checked this against my own bank or UPI records.</label>
       <div className="actions">
-        {["reported", "needs_review"].includes(claim.status) && <><button className="button" disabled={reviewDisabled || !reason.trim() || !acknowledged} onClick={() => resolve(claim, "owner_confirmed")}>{claim.mode === "upi" || production ? "Confirm report" : "Confirm demo report"}</button><button className="button secondary" disabled={reviewDisabled || !reason.trim()} onClick={() => resolve(claim, "rejected")}>Reject report</button></>}
+        {["reported", "needs_review"].includes(claim.status) && <><button className="button" disabled={reviewDisabled || !reason.trim() || !acknowledged} onClick={() => resolve(claim, "owner_confirmed")}>Confirm gift</button><button className="button secondary" disabled={reviewDisabled || !reason.trim()} onClick={() => resolve(claim, "rejected")}>Decline</button></>}
         {claim.status !== "needs_review" && <button className="button secondary" disabled={reviewDisabled || !reason.trim()} onClick={() => {
           if (claim.status === "owner_confirmed") { setError(""); setConfirmClaim(claim); }
           else void resolve(claim, "needs_review");
-        }}>{claim.status === "owner_confirmed" ? "Reverse confirmation into review" : "Mark needs review"}</button>}
-      </div>
+        }}>{claim.status === "owner_confirmed" ? "Undo confirmation" : "Mark needs review"}</button>}
+      </div></div>}
     </li>)}</ul>
-    <div className="actions"><button className="button secondary" disabled={busy || data.page === 1} onClick={() => refresh(filter, data.page - 1)}>Previous page</button><span>Page {data.page}; {data.total} matching reports</span><button className="button secondary" disabled={busy || data.page * 50 >= data.total} onClick={() => refresh(filter, data.page + 1)}>Next page</button></div>
+    {data.total > 50 && <div className="actions"><button className="button secondary" disabled={busy || data.page === 1} onClick={() => refresh(filter, data.page - 1)}>Previous page</button><span>Page {data.page}; {data.total} gifts</span><button className="button secondary" disabled={busy || data.page * 50 >= data.total} onClick={() => refresh(filter, data.page + 1)}>Next page</button></div>}
     {confirmClaim && <ConfirmAction title="Reverse this confirmation?" label="Reverse confirmation" busy={busy} error={error}
       onCancel={() => { setConfirmClaim(null); setError(""); }}
       onConfirm={async () => { if (await resolve(confirmClaim, "needs_review")) setConfirmClaim(null); }}>
