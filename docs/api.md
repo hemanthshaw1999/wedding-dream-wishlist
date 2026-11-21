@@ -106,6 +106,26 @@ Live recipient instructions (`paymentMode` `upi` with `liveRecipient`) project o
 
 The guest HTML route `/w/{slug}` uses the same server projection. The owner `/owner/{id}` route checks a session/membership before rendering any wishlist data. Share URLs/QR contain only `/w/{slug}`.
 
+## GET /api/owner/wishlists/{id}/guests
+
+Owner session required. Returns `{summary, guests}`: the couple's guest list with each guest's RSVP (`pending|attending|not_attending`), expected arrival time and answer timestamp, plus invited/attending/notAttending/awaiting counts. No invite tokens are ever returned.
+
+## POST /api/owner/wishlists/{id}/guests
+
+Owner session required, JSON `{"name":"..."}` only. Up to 30 requests/minute/owner. Adds an invited guest (one active entry per name per wishlist, compared case-insensitively) and returns the list plus `invitePath`, the guest's private RSVP link path shown exactly once. 409 GUEST_EXISTS for a duplicate name.
+
+## DELETE /api/owner/wishlists/{id}/guests/{guestId}
+
+Owner session required. Retires the guest: their RSVP link stops working, their answer is cleared and they no longer count in the summary. The row is soft-deleted, never hard-deleted, so the runtime role keeps its no-DELETE posture.
+
+## POST /api/owner/wishlists/{id}/guests/{guestId}/invite
+
+Owner session required. Rotates the guest's private link and returns the new `invitePath` once; the previous link stops working. Answers are preserved.
+
+## GET /api/rsvp/{token} and POST /api/rsvp/{token}
+
+No session required; the 192-bit random token in the path is the capability (only its SHA-256 hash is stored). Unknown tokens and guests of private/draft/archived wishlists all return the same 404. GET returns only the couple's display names, wedding date, the guest's own name/answer and whether RSVP is open. POST accepts `{"rsvp":"attending|not_attending","expectedArrival":"HH:MM"|null}` only while the wishlist is published and unexpired (409 CLOSED otherwise, 409 NO_CHANGE for an identical save); a No answer clears any saved arrival time. Up to 20 answers/minute/link. The HTML route `/rsvp/{token}` renders the same view.
+
 ## Explicitly absent
 
 There are no checkout, payment-gateway, webhook, refund, payout, admin, upload, notification or automatic bank-verification endpoints. Direct-UPI instructions are versioned text the guest pays through their own UPI app; the platform never collects, holds or verifies money. A client cannot activate other capabilities through an undocumented flag.
