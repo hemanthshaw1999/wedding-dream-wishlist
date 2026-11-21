@@ -35,7 +35,24 @@ p { margin: .5em 0 1em; }
 .button:hover { background: #6d3247; }
 .secondary { color: var(--rose); background: white; }
 .secondary:hover { background: var(--soft); }
-.text-button { color: #76344c; border: 0; background: none; text-decoration: underline; padding: 6px 0; }
+.text-button { color: #76344c; border: 0; background: none; text-decoration: underline; padding: 6px 0; display: inline-flex; align-items: center; gap: 6px; }
+.button svg, .text-button svg { flex: none; }
+.button { gap: 8px; }
+.icon-button { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; min-height: 42px; border: 1px solid var(--line); border-radius: 10px; background: white; color: var(--rose); padding: 0; text-decoration: none; flex: none; }
+.icon-button:hover { background: var(--soft); }
+.icon-button.small { width: 34px; height: 34px; min-height: 34px; vertical-align: middle; margin-left: 6px; }
+.guest-rows { list-style: none; padding: 0; margin: 8px 0; }
+.guest-rows li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.guest-rows li:last-child { border-bottom: 0; }
+.guest-rows .row-main { flex: 1; min-width: 150px; overflow-wrap: anywhere; }
+.guest-rows .row-main .pill { margin-left: 6px; }
+.guest-rows .row-detail { display: block; font-size: .85rem; color: var(--muted); }
+.guest-rows .row-actions { display: flex; gap: 8px; align-items: center; }
+.guest-rows .row-more { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 4px 0 2px; }
+.counts-line { margin: 10px 0 2px; }
+.notice.compact { padding: 14px 44px 14px 16px; margin: 14px 0; position: relative; }
+.notice .dismiss { position: absolute; top: 4px; right: 4px; border: 0; background: none; color: #593e24; padding: 8px; min-height: 0; }
+.review-line { margin: 6px 0; }
 .panel { background: #fffdfa; border: 1px solid var(--line); border-radius: 16px; padding: 27px; min-width: 0; }
 .feature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin: 35px 0; }
 .workspace-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr); gap: 24px; align-items: start; }
@@ -140,3 +157,124 @@ figcaption { font-size: .875rem; margin-top: 8px; }
 .report-list > li { border-top: 1px solid var(--line); padding: 12px 0; overflow-wrap: anywhere; }
 summary { cursor: pointer; min-height: 46px; padding: 10px 0; overflow-wrap: anywhere; }
 @media (max-width: 480px) { .totals-grid { grid-template-columns: minmax(0, 1fr); } }
+.supporters { padding-left: 1.4rem; }
+.supporters li { margin: 10px 0; }
+.supporters progress { height: 8px; margin: 6px 0 0; max-width: 320px; }
+
+/* Task-focused management: compact summaries, optional tools on demand. */
+.optional-fields, .history-disclosure, .goal-change-tools, .lifecycle-disclosure { margin: 12px 0; border-top: 1px solid var(--line); }
+.optional-fields summary, .history-disclosure summary, .goal-change-tools summary, .lifecycle-disclosure summary, .goal-more summary { color: var(--rose); font-size: .875rem; }
+.goal-more .button { margin: 4px; }
+.review-panel { margin: 14px 0 4px; padding: 0 16px; border-left: 3px solid var(--line); }
+.claims-dashboard .totals-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.claims-dashboard .totals-grid div { padding: 10px 12px; }
+.claims-dashboard .totals-grid dd { font-size: 1.2rem; margin-top: 2px; }
+#payment-setup, #cash-gifts, #guest-list { margin-top: 24px; }
+@media(max-width:760px) {
+ .section-nav { flex-wrap: nowrap; overflow-x: auto; padding: 12px 0; gap: 8px; }
+ .section-nav a { white-space: nowrap; font-size: .875rem; text-decoration: none; padding: 8px 12px; background: white; border: 1px solid var(--line); border-radius: 24px; }
+ .goal-art { height: 88px; }
+ .goal-art span { width: 54px; height: 54px; font-size: 2rem; }
+ .hero { padding: 20px 0; }
+ .section-heading { margin-top: 26px; }
+ .guest-report .actions { gap: 10px; }
+}
+
+.section-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 600; }
+.section-summary::after { content: "+"; color: var(--rose); font: 24px system-ui; flex: none; }
+details[open] > .section-summary::after { content: "−"; }
+.section-summary h2 { margin: 0; }
+.section-summary::-webkit-details-marker { display: none; }
+.preview-panel { margin-top: 24px; }
+.workspace-grid.has-saved > aside { grid-row: 1; grid-column: 1 / -1; }
+.workspace-grid.has-saved > section { grid-column: 1 / -1; }
+@media(max-width:760px) { .page-title { padding-top: 8px; } .page-title > .eyebrow { display:none; } .workspace-grid { gap: 16px; } }
+
+/* A quiet invitation feel, without extra steps or ornamental panels. */
+.wedding-mark { display: block; width: 112px; height: 40px; margin: 12px auto 16px; color: #987341; }
+.invitation-header { border-radius: 48% 48% 14px 14px / 20px 20px 14px 14px; background: radial-gradient(ellipse at 50% 0%, #f7eadf 0%, transparent 70%); }
+.gift-intro { font-family: Georgia, serif; font-size: 1.2rem; color: var(--rose); line-height: 1.35; margin: 2px 0 18px; }
+.wishes-fields summary { line-height: 1.5; }
+.wishes-fields summary svg { display: inline-block; vertical-align: -2px; margin-right: 7px; }
+.wishes-fields textarea { min-height: 126px; background: #fffcf8; }
+.wishes-fields textarea::placeholder { color: #7e6b73; opacity: 1; }
+.wishes-preview { margin: 12px 0; padding: 12px 16px; border-left: 2px solid #b99564; background: #fcf5ee; border-radius: 0 9px 9px 0; }
+.wishes-preview > svg { color: var(--rose); }
+.wishes-preview p { white-space: pre-wrap; overflow-wrap: anywhere; font-family: Georgia, serif; font-size: 1.1rem; margin: 5px 0; }
+
+.navigation { border-bottom: 1px solid #eaded3; }
+.wordmark span { color: #866640; letter-spacing: .08em; }
+.page-title > .wedding-mark { width: 84px; height: 30px; margin: 14px 0 6px; }
+.auth-panel { background: linear-gradient(155deg, #fffdfa, #fcf4ed); }
+.gift-status > .wedding-mark { margin-left: 0; }
+.footer { border-top-color: #deccba; }
+
+/* Wedding motion: small compositor-only flourishes, each ending within 4.6s.
+   Controls and payment/confirmation notices never move or wait for animation. */
+.hero { position: relative; isolation: isolate; }
+.wedding-flourish { display: block; pointer-events: none; user-select: none; overflow: hidden; }
+.invitation-petals { position: absolute; inset: 0; z-index: -1; border-radius: inherit; }
+.wedding-petal { position: absolute; width: 13px; height: 20px; border-radius: 80% 10% 75% 20%; background: #d9a3af; opacity: 0; }
+.wedding-petal:nth-child(1) { left: 4%; top: 6%; }
+.wedding-petal:nth-child(2) { left: 17%; top: 16%; animation-delay: .25s; background: #c6ab78; width: 8px; height: 13px; }
+.wedding-petal:nth-child(3) { left: 7%; top: 40%; animation-delay: .6s; }
+.wedding-petal:nth-child(4) { left: 23%; top: 2%; animation-delay: .9s; width: 9px; height: 14px; }
+.wedding-petal:nth-child(5) { left: 92%; top: 5%; animation-delay: .15s; background: #c6ab78; }
+.wedding-petal:nth-child(6) { left: 80%; top: 24%; animation-delay: .45s; width: 9px; height: 14px; }
+.wedding-petal:nth-child(7) { left: 88%; top: 43%; animation-delay: .7s; }
+.wedding-petal:nth-child(8) { left: 71%; top: 1%; animation-delay: 1s; width: 8px; height: 13px; background: #c6ab78; }
+.invitation-petals .wedding-petal { animation-name: petal-drift; animation-duration: 3.5s; animation-timing-function: ease-out; animation-fill-mode: both; }
+@keyframes petal-drift { 0% { opacity: 0; transform: translate3d(-12px,-20px,0) rotate(-35deg); } 20% { opacity: .55; } 65% { opacity: .35; } 100% { opacity: 0; transform: translate3d(12px,68px,0) rotate(100deg); } }
+.wedding-mark .ring-first { transform-origin: 62px 27px; animation: ring-meet-left 1.5s cubic-bezier(.2,.8,.3,1.15) both; }
+.wedding-mark .ring-second { transform-origin: 79px 27px; animation: ring-meet-right 1.5s cubic-bezier(.2,.8,.3,1.15) both; }
+@keyframes ring-meet-left { from { opacity: 0; transform: translateX(-14px) rotate(-25deg); } to { opacity: 1; transform: none; } }
+@keyframes ring-meet-right { from { opacity: 0; transform: translateX(14px) rotate(25deg); } to { opacity: 1; transform: none; } }
+.hero > h1, .hero > h2 { animation: invitation-unfold .9s cubic-bezier(.2,.8,.25,1) both; transform-origin: center top; }
+@keyframes invitation-unfold { from { opacity: .15; transform: perspective(700px) rotateX(-12deg) translateY(10px); } to { opacity: 1; transform: none; } }
+.celebration { height: 60px; position: relative; margin: 0 0 6px; }
+.celebration-heart { position: absolute; width: 27px; height: 27px; left: calc(50% - 13.5px); top: 18px; color: var(--rose); animation: heart-pop 1s cubic-bezier(.2,.8,.25,1.3) both; }
+@keyframes heart-pop { 0% { opacity: 0; transform: scale(.3); } 55% { opacity: 1; transform: scale(1.2); } 100% { opacity: 1; transform: scale(1); } }
+.celebration .wedding-petal { top: 45%; animation-name: wish-burst; animation-duration: 2.2s; animation-timing-function: ease-out; animation-fill-mode: both; }
+@keyframes wish-burst { 0% { opacity: 0; transform: translateY(22px) rotate(-35deg) scale(.4); } 25% { opacity: .8; } 100% { opacity: 0; transform: translateY(-28px) rotate(100deg) scale(.85); } }
+.button, .icon-button { transition: background-color .16s ease, box-shadow .16s ease; }
+@media (hover: hover) { .button:hover, .icon-button:hover { box-shadow: 0 3px 10px #85435a18; } }
+@media (prefers-reduced-motion: reduce) { .wedding-petal { display: none; } }
+
+/* Small moments across the journey, never looping or delaying an action. */
+.wedding-garland { display: block; width: min(250px, 85%); height: 30px; margin: 0 auto 10px; overflow: visible; pointer-events: none; }
+.garland-thread { stroke-dasharray: 1; animation: garland-draw 1.4s ease-out both; }
+.wedding-garland g { animation: garland-flowers 1.8s ease-out both; }
+@keyframes garland-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes garland-flowers { 0%, 25% { opacity: 0; transform: translateY(-3px); } 100% { opacity: 1; transform: none; } }
+.hero .date::after { content: ""; display: block; width: 52px; height: 1px; background: #b99564; margin: 14px auto 0; animation: date-ribbon 1.4s ease-out both; }
+@keyframes date-ribbon { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.goal-art span { animation: dream-bloom 1s cubic-bezier(.2,.8,.2,1.15) both; }
+.goal-card:nth-child(2) .goal-art span { animation-delay: .15s; }
+.goal-card:nth-child(3) .goal-art span { animation-delay: .3s; }
+@keyframes dream-bloom { from { opacity: 0; transform: scale(.7) rotate(-12deg); } to { opacity: 1; transform: none; } }
+.wishes-fields[open] summary svg { animation: wishes-heart .65s ease-out both; }
+.wishes-fields[open] textarea { animation: note-reveal .4s ease-out both; }
+@keyframes wishes-heart { 0% { transform: scale(.8); } 50% { transform: scale(1.25); } 100% { transform: scale(1); } }
+@keyframes note-reveal { from { opacity: .4; } to { opacity: 1; } }
+.wedding-envelope { display: block; width: 82px; height: 60px; margin: 10px auto 4px; overflow: visible; pointer-events: none; }
+.envelope-letter { animation: letter-rise 1.1s ease-out both; }
+.envelope-flap { transform-origin: 44px 25px; animation: envelope-open 1.1s ease-out both; }
+.envelope-seal { animation: seal-appear 1.3s ease-out both; }
+@keyframes envelope-open { from { transform: scaleY(-1); } to { transform: scaleY(1); } }
+@keyframes letter-rise { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes seal-appear { 0%, 40% { opacity: 0; transform: translateY(4px); } 100% { opacity: 1; transform: none; } }
+.wishes-preview { animation: note-reveal .5s ease-out both; }
+.rsvp-heart { display: inline-flex; animation: wishes-heart .65s ease-out both; }
+.rsvp-saved { padding: 14px 16px; background: #f3f1e6; border: 1px solid #d6cfaf; border-radius: 10px; }
+.saved-check { display: inline-flex; color: #526044; margin-right: 8px; vertical-align: -2px; }
+.saved-check polyline { stroke-dasharray: 30; animation: saved-check-draw .65s ease-out both; }
+@keyframes saved-check-draw { from { stroke-dashoffset: 30; } to { stroke-dashoffset: 0; } }
+.gift-status-actions button[aria-label="Status link copied"] svg { animation: wishes-heart .5s ease-out both; }
+
+/* Role choices are confined to local onboarding previews. */
+.role-options { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.role-options label { display: inline-flex; align-items: center; gap: 8px; margin: 4px 0; min-height: 46px; font-weight: 400; }
+.role-options input { width: 20px; height: 20px; min-height: 20px; accent-color: var(--rose); }
+.starter-role { margin-top: 4px; }
+.gift-celebration .celebration { margin-bottom: -22px; }
+.gift-celebration .celebration-heart { display: none; }
