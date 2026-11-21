@@ -87,34 +87,36 @@ export function OwnerWorkspace({ wishlists, session, authDemo = true, entry, ret
 
   return (
     <>
-      <header className="page-title"><p className="eyebrow">Build a meaningful next chapter</p><h1>Your wishlist workspace</h1><p className="muted">A private place for your story, dreams and guest reports.{authDemo ? " Use fictional details only in this demo." : ""}</p></header>
+      <header className="page-title"><p className="eyebrow">A little planning, a lot of love</p><h1>Your wishlist workspace</h1><p className="muted">Your story, your dreams, and the people celebrating with you.</p></header>
       {error && <div ref={errorRef} tabIndex={-1} role="alert" className="error-box">{error}{!entered && <p>Your unsaved draft is kept here. Sign in to the same account to continue.</p>}</div>}
       {!entered && exiting && <p role="status">Signed out. Loading sign-in... <button type="button" className="text-button" onClick={() => window.location.reload()}>Reload sign-in</button></p>}
       {!entered && !exiting && <div className="onboarding-grid">
         <aside className="onboarding-intro">
-          <p className="eyebrow">From your first idea to a shared story</p>
+          <p className="eyebrow">For the two of you</p>
           <h2>Make room for what matters.</h2>
-          <ol className="journey-steps"><li><strong>Create and verify</strong><span>Use your own account. Verification protects access to your workspace.</span></li><li><strong>Start with a private draft</strong><span>Add your story and goals. Nothing is shared until you publish.</span></li><li><strong>Preview, then share</strong><span>{authDemo ? "Guests can explore without an account. Payments remain disabled." : "Guests can explore without an account. You control when gifting goes live."}</span></li></ol>
-          <p className="muted">{authDemo ? "Demo - no real money. No bank details, screenshots or real personal information. Sessions expire after one hour." : "Gift money moves directly between your guests and your own UPI account; this app never holds it. Sessions expire after one hour."}</p>
+          <ol className="journey-steps"><li><strong>Create and verify</strong><span>Either partner can start. Verify your own email.</span></li><li><strong>Start with a private draft</strong><span>Add your names and a dream. Publish only when ready.</span></li><li><strong>Preview, then share</strong><span>{authDemo ? "Guests can explore without an account. Payments remain disabled." : "Guests can explore without an account. You control when gifting goes live."}</span></li></ol>
+          <p className="muted">{authDemo ? "No bank details or screenshots here. Sessions expire after one hour." : "Gift money moves directly between your guests and your own UPI account; this app never holds it. Sessions expire after one hour."}</p>
         </aside>
         <AuthPanel demo={authDemo} entry={entry} returnTo={returnTo} onSignedIn={signedIn} />
       </div>}
       {entered && (
-        <div className="workspace-grid">
+        <div className={`workspace-grid${visibleWishlists?.length ? " has-saved" : ""}`}>
           <section className="panel" aria-labelledby="create-title">
-            <h2 id="create-title">Create a wishlist</h2>
-            <p className="muted">Save a private draft first. Preview before sharing.{authDemo ? " All fields are fictional." : ""}</p>
+            <details open={!visibleWishlists?.length || Boolean(error) || undefined}><summary className="section-summary"><h2 id="create-title">Create a wishlist</h2></summary>
+            <p className="muted">Your names, one dream, a private draft. Preview before you share.</p>
             <form onSubmit={create} aria-busy={busy}>
               <fieldset className="form-fields" disabled={busy || !serverSettled} aria-label="Wishlist details">
               <label htmlFor="names">Couple display names</label>
               <input id="names" autoComplete="off" maxLength={100} required value={names} onChange={(e) => setNames(e.target.value)} aria-invalid={Boolean(fields.displayNames)} aria-describedby={fields.displayNames ? "error-displayNames" : undefined} />
               {fieldError("displayNames")}
-              <label htmlFor="story">Your story <span>(optional)</span></label>
-              <textarea id="story" maxLength={2000} value={story} onChange={(e) => setStory(e.target.value)} aria-invalid={Boolean(fields.story)} aria-describedby={fields.story ? "error-story" : undefined} />{fieldError("story")}
+              <details className="optional-fields"><summary>Add your story and dates (optional)</summary>
+              <label htmlFor="story">Your love story <span>(optional)</span></label>
+              <textarea id="story" placeholder="How you met, what makes you two you, or a little note to the people celebrating with you..." maxLength={2000} value={story} onChange={(e) => setStory(e.target.value)} aria-invalid={Boolean(fields.story)} aria-describedby={fields.story ? "error-story" : undefined} />{fieldError("story")}
               <div className="form-grid">
                 <div><label htmlFor="wedding-date">Wedding date <span>(optional)</span></label><input id="wedding-date" type="date" min="1900-01-01" max="2200-12-31" value={date} onChange={(e) => setDate(e.target.value)} aria-invalid={Boolean(fields.weddingDate)} aria-describedby={fields.weddingDate ? "error-weddingDate" : undefined} />{fieldError("weddingDate")}</div>
                 <div><label htmlFor="expiry">Available through <span>(optional, IST)</span></label><input id="expiry" type="date" min="1900-01-01" max="2200-12-31" value={expiry} onChange={(e) => setExpiry(e.target.value)} aria-invalid={Boolean(fields.expiresOn)} aria-describedby={fields.expiresOn ? "error-expiresOn" : undefined} />{fieldError("expiresOn")}</div>
               </div>
+              </details>
               <label htmlFor="slug">Share slug</label>
               <input id="slug" required minLength={3} maxLength={60} pattern="[a-z0-9]+(-[a-z0-9]+)*" value={slug} onChange={(e) => setSlug(e.target.value)} aria-invalid={Boolean(fields.slug)} aria-describedby={`slug-hint${fields.slug ? " error-slug" : ""}`} />
               <small id="slug-hint">The end of your guest link, such as tara-and-arjun. 3-60 lowercase letters, numbers and single hyphens. Cannot be changed after saving.</small>
@@ -125,15 +127,17 @@ export function OwnerWorkspace({ wishlists, session, authDemo = true, entry, ret
                 <option value="public">Public - anonymous viewing allowed</option>
                 <option value="private">Private - owner preview only</option>
               </select>
-              <small>{authDemo ? "No indexing or public directory in this demo. Unlisted links are shareable, not passwords." : "There is no public directory. Unlisted links are shareable, not passwords."}</small>
+              <small>{authDemo ? "There is no public directory. Unlisted links are shareable, not passwords." : "There is no public directory. Unlisted links are shareable, not passwords."}</small>
               <h3>Your goals</h3>
               {goals.map((goal, index) => (
                 <fieldset key={index}>
                   <legend>Goal {index + 1}</legend>
                   <label htmlFor={`title-${index}`}>Goal title</label>
                   <input id={`title-${index}`} required maxLength={100} value={goal.title} onChange={(e) => updateGoal(index, "title", e.target.value)} aria-invalid={Boolean(fields[`goals.${index}.title`])} aria-describedby={fields[`goals.${index}.title`] ? `error-goals.${index}.title` : undefined} />{fieldError(`goals.${index}.title`)}
+                  <details className="optional-fields"><summary>Add a goal description (optional)</summary>
                   <label htmlFor={`description-${index}`}>Description <span>(optional)</span></label>
                   <textarea id={`description-${index}`} maxLength={1000} value={goal.description} onChange={(e) => updateGoal(index, "description", e.target.value)} aria-invalid={Boolean(fields[`goals.${index}.description`])} aria-describedby={fields[`goals.${index}.description`] ? `error-goals.${index}.description` : undefined} />{fieldError(`goals.${index}.description`)}
+                  </details>
                   <label htmlFor={`target-${index}`}>Target amount (INR)</label>
                   <input id={`target-${index}`} inputMode="decimal" required value={goal.target} onChange={(e) => updateGoal(index, "target", e.target.value)} aria-invalid={Boolean(fields[`goals.${index}.target`])} aria-describedby={`target-hint-${index}${fields[`goals.${index}.target`] ? ` error-goals.${index}.target` : ""}`} />
                   <small id={`target-hint-${index}`}>For example 300000. Up to two decimal places. INR 0.01 to INR 1,00,00,000.</small>
@@ -146,11 +150,11 @@ export function OwnerWorkspace({ wishlists, session, authDemo = true, entry, ret
                 <button className="button" disabled={busy} type="submit">{busy ? "Saving..." : "Save draft and preview"}</button>
               </div>
               </fieldset>
-            </form>
+            </form></details>
           </section>
           <aside className="panel" aria-labelledby="existing-title" aria-busy={visibleWishlists === null}>
             <h2 id="existing-title">Saved wishlists</h2>
-            {visibleWishlists === null ? <p role="status">Loading saved wishlists...</p> : !visibleWishlists.length && <p>{authDemo ? "No wishlists yet. Create your first fictional draft." : "No wishlists yet. Create your first draft."}</p>}
+            {visibleWishlists === null ? <p role="status">Loading saved wishlists...</p> : !visibleWishlists.length && <p>{authDemo ? "No wishlists yet. Create your first draft." : "No wishlists yet. Create your first draft."}</p>}
             <ul className="wishlist-list">
               {visibleWishlists?.map((wishlist) => <li key={wishlist.id}><Link href={`/owner/${wishlist.id}`}>{wishlist.displayNames}</Link><span className="pill">{wishlist.state}</span></li>)}
             </ul>
