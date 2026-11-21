@@ -49,6 +49,10 @@ All timestamps written by this implementation are UTC ISO-8601 with milliseconds
 
 Publishing/resuming after expiry is rejected. Publication does not override private visibility. Archiving is not deletion. There is no contribution action in any state yet.
 
+## Guest list and RSVP (migration 009)
+
+`wishlist_guests` holds the couple's invited guests: name, RSVP answer (`pending`, `attending`, `not_attending`), optional expected arrival time-of-day (validated `HH:MM`, cleared automatically on a No answer), answer timestamp and a SHA-256 hash of the guest's 192-bit private link token. Raw tokens are never stored and shown exactly once at creation or rotation. One active entry per normalized name per wishlist (partial unique index on `removed_at IS NULL`); removal is a soft delete with an audit entry, so the restricted runtime role needs no DELETE grant. RSVP answers are accepted only while the wishlist is published and unexpired; paused and closed links stay readable but not answerable, and private/draft/archived wishlists return the same 404 as unknown tokens.
+
 ## Future financial schema - design only, NOT migrated or implemented
 
 ```mermaid
