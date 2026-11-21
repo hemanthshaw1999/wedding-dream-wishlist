@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { en } from "@/lib/strings";
+import { WeddingMark, WeddingFlourish, WeddingGarland } from "@/components/wedding-mark";
 import { applicationConfig } from "@/server/config";
 
 export const dynamic = "force-dynamic";
@@ -10,25 +10,19 @@ export default function Home() {
     <>
       <header className="hero home-hero">
         <p className="eyebrow">Meaningful wedding wishes, thoughtfully shared</p>
-        <span className="ornament" aria-hidden="true">*</span>
+        <WeddingFlourish /><WeddingGarland /><WeddingMark />
         <h1>A little future,<br />dreamed together.</h1>
-        <p className="story">{production
-          ? "Tell your guests what you truly want. Add goals with a budget, like a Bali trip or a home loan first payment. Guests pick a goal and give any amount that suits them, instead of a gift you may never use."
-          : "Create a wedding wishlist of experiences and goals. Preview your story, save it locally and explore what your guests will see."}</p>
-        <div className="actions centered"><Link className="button" href="/owner?mode=sign-up">{production ? "Create your wishlist" : "Create a fictional wishlist"}</Link><Link className="button secondary" href="/owner">Sign in to your workspace</Link></div>
+        <p className="story">Your people, your shared dreams, and a little love for your next chapter.</p>
+        <div className="actions centered"><Link className="button" href="/owner?mode=sign-up">Create your wishlist</Link><Link className="button secondary" href="/owner">Sign in to your workspace</Link></div>
       </header>
-      <section className="notice">{production ? <>
+      {production && <section className="notice">
         <strong>Gifts go directly to the couple.</strong>
-        <p>Guests pay the couple&apos;s own UPI ID in their preferred UPI app, then report the gift here. The couple confirms each report against their own bank records. This app never holds money and charges no fee.</p>
-      </> : <>
-        <strong>{en.demo}</strong><p>Create with fictional details only. Real payments, real email and public hosting are not enabled in this local version. Preview your own guest page after saving a draft.</p>
-      </>}</section>
-      <section className="feature-grid" aria-label={production ? "Capabilities" : "Demo capabilities"}>
+        <p>Guests pay your own UPI ID in their UPI app and tell you here. You confirm each gift against your bank records. The app never holds money and charges no fee.</p>
+      </section>}
+      <section className="feature-grid" aria-label="Capabilities">
         <div className="panel"><p className="eyebrow">01 / Create</p><h2>Dreams with detail</h2><p>Write the goals you really want, each with an INR budget. Guests can fund any part of a goal, so no single person has to cover it.</p></div>
-        <div className="panel"><p className="eyebrow">02 / Preview</p><h2>Thoughtful by default</h2><p>Private owner preview and explicit visibility. No guest names or messages made public.</p></div>
-        {production
-          ? <div className="panel"><p className="eyebrow">03 / Share</p><h2>A link to your story</h2><p>Anonymous guest view and a wishlist-link QR that works on any phone.</p></div>
-          : <div className="panel"><p className="eyebrow">03 / Share locally</p><h2>A link to your story</h2><p>Anonymous guest view and a wishlist-link QR. Payment and public hosting remain disabled.</p></div>}
+        <div className="panel"><p className="eyebrow">02 / Preview</p><h2>Thoughtful by default</h2><p>Private owner preview and explicit visibility. Guest messages stay private. Names appear only when guests choose to be listed.</p></div>
+        <div className="panel"><p className="eyebrow">03 / Share</p><h2>A link to your story</h2><p>Anonymous guest view and a wishlist-link QR that works on any phone.</p></div>
       </section>
     </>
   );
