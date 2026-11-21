@@ -1,11 +1,14 @@
 "use client";
 
 import Image from "next/image";
+import { WeddingFlourish, WeddingEnvelope, WeddingMark } from "./wedding-mark";
 import QRCode from "qrcode";
 import { useState } from "react";
 import type { Goal, PublicWishlist } from "@/lib/wishlist";
 import type { ClaimReceipt } from "@/lib/claims";
 import { formatINR, parseINR } from "@/lib/money";
+import { buildUpiUri } from "@/lib/upi";
+import { CheckIcon, CopyIcon, EditIcon, HeartIcon } from "./icons";
 import { requestJson } from "./client-api";
 import { useRequestLock } from "./use-request-lock";
 
@@ -22,6 +25,13 @@ export function GuestReport({ wishlist, goal }: { wishlist: PublicWishlist; goal
   const [error, setError] = useState("");
   const [receipt, setReceipt] = useState<ClaimReceipt | null>(null);
   const [privateUrl, setPrivateUrl] = useState("");
+  const [payQr, setPayQr] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [howOpen, setHowOpen] = useState(false);
+  const [statusCopied, setStatusCopied] = useState(false);
+  const [showStatusLink, setShowStatusLink] = useState(false);
+  const [statusCopyError, setStatusCopyError] = useState("");
   const recipient = wishlist.recipientSnapshot;
   const live = wishlist.paymentMode === "upi" ? wishlist.liveRecipient : null;
   const field = (name: string) => `${goal.id}-${name}`;
@@ -30,7 +40,7 @@ export function GuestReport({ wishlist, goal }: { wishlist: PublicWishlist; goal
     return <p>Reports are unavailable for this wishlist while live payments are disabled for this deployment.</p>;
   }
   if (goal.archivedAt || (!live && (!recipient || wishlist.availability !== "available")) || (live && !["available", "paused"].includes(wishlist.availability))) {
-    return <p>{live ? "Reports" : "Demo reports"} are unavailable for this {goal.archivedAt ? "archived goal" : "wishlist"}.</p>;
+    return <p>Reports are unavailable for this {goal.archivedAt ? "archived goal" : "wishlist"}.</p>;
   }
   async function prepare(event: React.FormEvent) {
     event.preventDefault();
@@ -39,12 +49,24 @@ export function GuestReport({ wishlist, goal }: { wishlist: PublicWishlist; goal
     try {
       const paise = parseINR(amount);
       if (paise < 100 || paise > 10_000_000) throw new Error("Use INR 1 to INR 1,00,000.");
-      if (!live) {
-        setQr(await QRCode.toDataURL(`DEMO-NOT-PAYABLE|${JSON.stringify({ goal: goal.id, amountPaise: paise, recipient: recipient?.id })}`, { width: 220, margin: 3 }));
+      if (live) {
+        setPayQr(await QRCode.toDataURL(buildUpiUri({ upiId: live.upiId, payeeName: live.label, amountPaise: paise, note: goal.title }), { width: 220, margin: 3 }));
+      } else {
+        setQr(await QRCode.toDataURL(`NOT-PAYABLE|${JSON.stringify({ goal: goal.id, amountPaise: paise, recipient: recipient?.id })}`, { width: 220, margin: 3 }));
       }
       setReview(true);
-    } catch (error) { setError(error instanceof Error ? error.message : "Could not prepare the demo report."); }
+    } catch (error) { setError(error instanceof Error ? error.message : "Could not prepare the gift report."); }
     finally { finish(); }
+  }
+  async function copyUpiId() {
+    if (!live) return;
+    try { await navigator.clipboard.writeText(live.upiId); setCopied(true); }
+    catch { setCopied(false); setError("Copy failed. Long-press the UPI ID and copy it manually."); }
+  }
+  async function copyStatusLink() {
+    setStatusCopyError("");
+    try { await navigator.clipboard.writeText(privateUrl); setStatusCopied(true); }
+    catch { setStatusCopied(false); setShowStatusLink(true); setStatusCopyError("Automatic copy is unavailable. Select the status link below and copy it manually."); }
   }
   async function report(event: React.FormEvent) {
     event.preventDefault();
@@ -66,43 +88,56 @@ export function GuestReport({ wishlist, goal }: { wishlist: PublicWishlist; goal
   }
   return (
     <div className="guest-report">
-      {!open && <button className="button secondary" onClick={() => setOpen(true)}>{live ? "Choose a gift" : "Choose a demo gift"}</button>}
+      {!open && <button className="button secondary" onClick={() => setOpen(true)}>Choose a gift</button>}
       {open && !review && <form onSubmit={prepare}>
-        <fieldset className="form-fields" disabled={busy} aria-label="Demo gift details">
+        <fieldset className="form-fields" disabled={busy} aria-label="Gift details">
+        <p className="gift-intro">A little love for their next chapter</p>
         {live ? <>
-          <p><strong>Live direct-to-couple UPI.</strong> Pay {live.label} at UPI ID <strong>{live.upiId}</strong> (instruction version {live.version}) in your own UPI app first, then report the amount you actually paid here.</p>
-          {liveLate && <p role="note"><strong>This collection is paused.</strong> Report only money you already paid. The couple reviews late reports carefully against their bank records.</p>}
-        </> : <p><strong>Demo - no real money.</strong> No transfer happens here. Do not enter real payment or bank details.</p>}
-        <label htmlFor={field("amount")}>Gift amount (INR)</label>
+          <p>Pay {live.label} at UPI ID <strong>{live.upiId}</strong> in your own UPI app first, then tell them here what you paid.</p>
+          {liveLate && <p role="note"><strong>Gifting is paused.</strong> Only report a gift you have already paid.</p>}
+        </> : <p>This app doesn&apos;t take payments. Please don&apos;t enter payment or bank details.</p>}
+        <label htmlFor={field("amount")}>Gift amount (₹)</label>
         <div className="actions">{["500", "2000", "5000"].map((preset) => <button key={preset} type="button" className="button secondary" aria-pressed={amount === preset} onClick={() => setAmount(preset)}>{formatINR(Number(preset) * 100)}</button>)}</div>
         <input id={field("amount")} required inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
-        <small>Custom amount: INR 1 to INR 1,00,000. No minimum-gift expectation; gifting is optional.</small>
-        <label htmlFor={field("name")}>Your name (optional). Only the couple sees it unless you tick the option below. Leave blank to give anonymously in this app; your UPI app may still show your details to the couple.</label><input id={field("name")} maxLength={100} value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
-        <label className="checkbox-label"><input type="checkbox" checked={showPublicly} onChange={(e) => setShowPublicly(e.target.checked)} /> Show my name and amount to everyone who views this wishlist, after the couple confirms my gift. Needs a name above. Leave unticked to stay private.</label>
-        <label htmlFor={field("message")}>Message (optional, private)</label><textarea id={field("message")} maxLength={500} value={message} onChange={(e) => setMessage(e.target.value)} />
-        <label htmlFor={field("reference")}>{live ? "UPI reference (optional, not proof)" : "Fictional reference (optional, not proof)"}</label><input id={field("reference")} maxLength={64} value={reference} onChange={(e) => setReference(e.target.value)} autoComplete="off" />
-        <div className="actions"><button className="button">{busy ? "Preparing..." : live ? "Review gift report" : "Review demo gift"}</button></div>
+        <small>Any amount from ₹1 to ₹1,00,000.</small>
+        <details className="optional-fields wishes-fields"><summary><HeartIcon />Add your wishes for the couple <span>(optional)</span></summary>
+        <label htmlFor={field("message")}>Your wishes for the couple (optional)</label><textarea id={field("message")} placeholder="Wishing you a lifetime of love, laughter and little adventures together..." maxLength={500} value={message} onChange={(e) => setMessage(e.target.value)} />
+        <small>Only the couple can read your message.</small>
+        <label htmlFor={field("name")}>Your name (optional)</label><input id={field("name")} maxLength={100} value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
+        <label className="checkbox-label"><input type="checkbox" checked={showPublicly} onChange={(e) => setShowPublicly(e.target.checked)} /> List my name as a supporter once confirmed, ranked by gift size. My exact amount stays hidden.</label>
+        <label htmlFor={field("reference")}>{live ? "UPI reference (optional)" : "Reference (optional)"}</label><input id={field("reference")} maxLength={64} value={reference} onChange={(e) => setReference(e.target.value)} autoComplete="off" />
+        </details>
+        <div className="actions"><button className="button">{busy ? "One moment..." : "Continue"}</button></div>
         </fieldset>
       </form>}
       {review && !receipt && <form onSubmit={report}>
-        <h4>Review before reporting</h4>
+        <WeddingEnvelope />
+        <h4>A gift with love</h4>
+        {message.trim() && <blockquote className="wishes-preview"><HeartIcon /><p>{message}</p><small>Your private wishes for the couple</small></blockquote>}
         {live ? <>
-          <p>Goal: {goal.title}<br />Pay: {live.label} at UPI ID <strong>{live.upiId}</strong> (instruction version {live.version})<br />Amount: {formatINR(parseINR(amount))} INR</p>
-          <p>Pay only through your own UPI app after verifying the recipient name it shows. Report only money you actually paid. A report, screenshot, reference or UPI-app return is not proof of receipt: only the couple can manually confirm after checking bank records.</p>
-          <label className="checkbox-label"><input type="checkbox" required /> I paid this exact amount to the UPI ID above and understand the couple verifies bank records before confirming.</label>
-          <div className="actions"><button className="button" disabled={busy}>Submit report</button><button type="button" className="text-button" disabled={busy} onClick={() => setReview(false)}>Edit details</button></div>
+          <p className="review-line"><strong>{goal.title}</strong> · {formatINR(parseINR(amount))}</p>
+          <p className="review-line">To {live.label} · UPI ID <strong>{live.upiId}</strong>
+            <button type="button" className="icon-button small" aria-label={copied ? "UPI ID copied" : "Copy UPI ID"} onClick={copyUpiId}>{copied ? <CheckIcon /> : <CopyIcon />}</button></p>
+          <div className="actions">
+            <a className="button" href={buildUpiUri({ upiId: live.upiId, payeeName: live.label, amountPaise: parseINR(amount), note: goal.title })}>Pay {formatINR(parseINR(amount))} with your UPI app</a>
+          </div>
+          <button type="button" className="text-button" aria-expanded={qrOpen} onClick={() => setQrOpen(!qrOpen)}>{qrOpen ? "Hide the QR code" : "On a computer? Show a QR to scan"}</button>
+          {qrOpen && payQr && <figure><Image src={payQr} width={220} height={220} unoptimized alt={`UPI payment QR for ${live.label}, ${formatINR(parseINR(amount))}`} /><figcaption>Scan this with your phone&apos;s UPI app.</figcaption></figure>}
+          <p className="muted">Paying happens in your own UPI app - this app cannot see it. Send this report after paying; the couple confirms your gift from their account, and only then it counts toward the goal.</p>
+          <button type="button" className="text-button" aria-expanded={howOpen} onClick={() => setHowOpen(!howOpen)}>How paying works</button>
+          {howOpen && <p className="muted">The Pay button or QR only opens your UPI app with the recipient, amount and note already filled in - check the recipient name before you pay. Your payment never passes through this app, so the app cannot confirm it. When you send this report, the couple sees it, checks their own account, and marks your gift confirmed. Until they do, it does not count toward the goal.</p>}
+          <label className="checkbox-label"><input type="checkbox" required /> I have paid this amount to the UPI ID above.</label>
+          <div className="actions"><button className="button" disabled={busy}>Send to the couple</button><button type="button" className="button secondary" disabled={busy} onClick={() => setReview(false)}><EditIcon />Edit details</button></div>
         </> : <>
-          <p><strong>Demo - no real money.</strong></p><p>Goal: {goal.title}<br />Recipient label: {recipient?.label}<br />Amount: {formatINR(parseINR(amount))} INR</p>
-          {qr && <Image src={qr} width={220} height={220} unoptimized alt="Demo instruction QR - not payable and not a UPI QR" />}
-          <p>This QR is non-payable. In the future direct-UPI version, the UPI app must show the expected recipient before the guest authorizes payment.</p>
-          <p>A report, screenshot, reference or UPI-app return is not proof of receipt. Only the couple can manually confirm after checking bank records.</p>
-          <label className="checkbox-label"><input type="checkbox" required /> I understand this only submits a demo declaration.</label>
-          <div className="actions"><button className="button" disabled={busy}>Submit demo report</button><button type="button" className="text-button" disabled={busy} onClick={() => setReview(false)}>Edit details</button></div>
+          <p>{goal.title}<br />{formatINR(parseINR(amount))} for {recipient?.label}</p>
+          {qr && <Image src={qr} width={220} height={220} unoptimized alt="Illustrative QR - not payable and not a UPI QR" />}
+                    <label className="checkbox-label"><input type="checkbox" required /> I understand this records my gift but does not make a payment.</label>
+          <div className="actions"><button className="button" disabled={busy}>Send to the couple</button><button type="button" className="button secondary" disabled={busy} onClick={() => setReview(false)}><EditIcon />Edit details</button></div>
         </>}
       </form>}
       {error && <p role="alert" className="error-box">{error}</p>}
-      {receipt && <div role="status"><h4>Report saved - not verified</h4><p>Reference: {receipt.id}</p><p>Status: {receipt.status}. Reported money does not increase confirmed progress.</p></div>}
-      {privateUrl && <div><label htmlFor={field("status")}>Private status link - keep it secret</label><input id={field("status")} readOnly value={privateUrl} onFocus={(event) => event.target.select()} /><a href={privateUrl}>Check your private report status</a><p className="muted">Expires after seven days. The browser keeps only its random report key in this tab&apos;s session storage for safe retries; names/messages are not saved there.</p></div>}
+      {receipt && <div role="status" className="gift-celebration"><WeddingFlourish celebration /><WeddingMark /><h4>Thank you! The couple has been told.</h4><p>Thank you for being part of their next chapter. The couple will confirm your gift from their account; it counts toward the goal after that.</p></div>}
+      {privateUrl && <div className="gift-status-actions"><div className="actions"><a className="button secondary" href={privateUrl}>Check status</a><button type="button" className="button secondary" aria-label={statusCopied ? "Status link copied" : "Copy status link"} onClick={copyStatusLink}>{statusCopied ? <CheckIcon /> : <CopyIcon />}{statusCopied ? "Copied" : "Copy link"}</button></div><p className="muted">Save your status link for seven days. Anyone holding it can see this gift&apos;s status. Keep it to yourself.</p>{statusCopyError && <p role="alert" className="error-box">{statusCopyError}</p>}<details open={showStatusLink || undefined}><summary>Show status link</summary><label htmlFor={field("status")}>Your status link</label><input id={field("status")} readOnly value={privateUrl} onFocus={(event) => event.target.select()} /></details></div>}
     </div>
   );
 }

@@ -47,7 +47,8 @@ export type PublicWishlist = {
   goals: Goal[];
   supporters: Supporter[];
 };
-export type Supporter = { name: string; amountPaise: number; goalTitle: string };
+// Rank and a coarse relative size (10-100, top supporter = 100). Exact amounts are never sent to guests.
+export type Supporter = { name: string; rank: number; relativeImpact: number; goalTitle: string };
 export type OwnerWishlist = Omit<PublicWishlist, "goals"> & {
   id: string;
   state: WishlistState;

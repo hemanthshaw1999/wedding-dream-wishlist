@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import QRCode from "qrcode";
 import { useRef, useState } from "react";
 import type { OwnerWishlist, WishlistState } from "@/lib/wishlist";
-import { en } from "@/lib/strings";
+import { CopyIcon } from "./icons";
 import { requestJson, RequestError } from "./client-api";
 import { OwnerGoals } from "./owner-goals";
 import { ConfirmAction } from "./confirm-action";
@@ -84,26 +84,27 @@ export function OwnerControls({ wishlist, origin, production = false }: { wishli
   }
   return (
     <><section id="publication" className="panel owner-controls" aria-labelledby="controls-title">
-      <h2 id="controls-title">Preview and publication</h2>
-      <p><strong>Current state: {current.state}.</strong> Visibility: {current.visibility}.</p>
-      <p>{production ? "Publishing makes this wishlist available at its guest link, subject to its visibility setting." : `${en.demo} Publishing here only enables anonymous access on this computer; it does not deploy the app.`}</p>
-      {current.visibility === "private" && <p>Private wishlists remain unavailable to guests even when published.</p>}
+      <h2 id="controls-title">Publish and share</h2><p className="muted">Invite your favourite people into your next chapter.</p>
+      <p><strong>Status: {current.state}</strong>, visibility {current.visibility}.</p>
+      {current.state === "draft" && <p className="muted">{production ? "Preview below, then publish to open your guest link." : "Preview below, then publish to open the guest link on this computer only."}</p>}
+      {current.visibility === "private" && <p>Private wishlists stay hidden from guests.</p>}
       <div className="actions">
-        {actions[current.state].map((action) => <button key={action.state} className="button secondary" disabled={busy} onClick={() => {
+        {actions[current.state].filter((action) => !["closed", "archived"].includes(action.state)).map((action) => <button key={action.state} className="button secondary" disabled={busy} onClick={() => {
           if (action.state === "closed" || action.state === "archived") { setError(""); setConfirmState(action.state); }
           else void changeState(action.state);
         }}>{action.label}</button>)}
       </div>
+      {actions[current.state].some((action) => ["closed", "archived"].includes(action.state)) && <details className="lifecycle-disclosure"><summary>Close or archive wishlist</summary><p className="muted">Closing and archiving cannot be undone. Pause instead if you plan to reopen.</p><div className="actions">{actions[current.state].filter((action) => ["closed", "archived"].includes(action.state)).map((action) => <button key={action.state} className="button secondary" disabled={busy} onClick={() => { setError(""); setConfirmState(action.state as "closed" | "archived"); }}>{action.label}</button>)}</div></details>}
       {error && !confirmState && <p role="alert" className="error-box">{error}</p>}
       {sessionExpired && <p><Link href={`/owner?${new URLSearchParams({ next: `/owner/${current.id}` })}`}>Sign in again</Link> to return to this wishlist. No state change was authorized.</p>}
-      <p role="status">{message}</p>
+      {message && <p role="status">{message}</p>}
       {shareable && (
         <div className="share-panel">
-          <label htmlFor="share-link">Guest wishlist link (no owner token)</label>
+          <label htmlFor="share-link">Guest link</label>
           <input ref={linkRef} id="share-link" value={guestUrl} readOnly onFocus={(event) => event.target.select()} />
-          <p className="muted">{production ? "Share this link with guests. It opens the wishlist page, not a payment app. The WhatsApp button opens WhatsApp with a message for you to send yourself; nothing is sent automatically." : en.localShare}</p>
+          <p className="muted">{production ? "Share this link with guests. WhatsApp opens a message for you to send yourself." : "This link only works on this computer."}</p>
           <div className="actions">
-            <button className="button secondary" onClick={copy}>Copy link</button>
+            <button className="button secondary" onClick={copy}><CopyIcon />Copy link</button>
             <a className="button secondary" href={whatsappUrl} target="_blank" rel="noopener noreferrer">{reached.length > 0 ? "Share goal update on WhatsApp" : "Share on WhatsApp"}</a>
             <button className="button secondary" onClick={createQr}>Create link QR</button>
             <Link href={`/w/${current.slug}`}>Open guest view</Link>

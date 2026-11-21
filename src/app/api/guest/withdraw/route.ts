@@ -8,7 +8,7 @@ export async function POST(request: Request) {
     assertMutation(request);
     await enforceRateLimit("guest-withdraw", "local-computer", 60);
     const body = await readJson(request);
-    if (!body || typeof body !== "object" || !("token" in body) || Object.keys(body).length !== 1) throw new AppError(404, "NOT_FOUND", "Private report not available.");
+    if (!body || typeof body !== "object" || !("token" in body) || Object.keys(body).length !== 1) throw new AppError(404, "NOT_FOUND", "This gift was not found. The link may have expired.");
     return json(await new ClaimsStore(getDatabase()).withdrawListing(body.token));
   } catch (error) { return apiError(error); }
 }

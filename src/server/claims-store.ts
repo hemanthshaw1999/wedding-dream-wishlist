@@ -66,7 +66,7 @@ export class ClaimsStore {
         // Simulated reports belong to the local demo only; production wishlists collect
         // reports only after the owner activates live direct-UPI instructions.
         if (isProductionDeployment()) throw new AppError(409, "UNAVAILABLE", "This wishlist has not enabled gift reports yet.");
-        if (wishlist.availability !== "available") throw new AppError(409, "UNAVAILABLE", "This wishlist is not accepting demo reports.");
+        if (wishlist.availability !== "available") throw new AppError(409, "UNAVAILABLE", "This wishlist is not accepting reports.");
         const recipient = wishlist.recipientSnapshot;
         if (!recipient || recipient.id !== input.recipientSnapshotId) throw new AppError(409, "STALE_RECIPIENT", "Recipient instructions changed. Refresh and review before submitting.");
         recipientSnapshotId = recipient.id;
@@ -95,10 +95,10 @@ export class ClaimsStore {
   }
 
   async withdrawListing(token: unknown): Promise<ClaimReceipt> {
-    if (typeof token !== "string" || !/^[a-f0-9]{64}$/.test(token)) throw new AppError(404, "NOT_FOUND", "Private report not available.");
+    if (typeof token !== "string" || !/^[a-f0-9]{64}$/.test(token)) throw new AppError(404, "NOT_FOUND", "This gift was not found. The link may have expired.");
     return this.db.transaction(async (tx) => {
       const row = await tx.get<ClaimRow>(`${selection} WHERE c.token_hash=$1 AND c.token_expires_at>$2`, [hash(token), new Date().toISOString()]);
-      if (!row) throw new AppError(404, "NOT_FOUND", "Private report not available or link expired.");
+      if (!row) throw new AppError(404, "NOT_FOUND", "This gift was not found. The link may have expired.");
       if (row.public_display) await tx.run("INSERT INTO supporter_withdrawals VALUES($1,$2) ON CONFLICT DO NOTHING", [row.id, new Date().toISOString()]);
       const after = await tx.get<ClaimRow>(`${selection} WHERE c.id=$1`, [row.id]);
       return receipt(after as ClaimRow);
@@ -106,9 +106,9 @@ export class ClaimsStore {
   }
 
   async status(token: unknown): Promise<ClaimReceipt> {
-    if (typeof token !== "string" || !/^[a-f0-9]{64}$/.test(token)) throw new AppError(404, "NOT_FOUND", "Private report not available.");
+    if (typeof token !== "string" || !/^[a-f0-9]{64}$/.test(token)) throw new AppError(404, "NOT_FOUND", "This gift was not found. The link may have expired.");
     const row = await this.db.get<ClaimRow>(`${selection} WHERE c.token_hash=$1 AND c.token_expires_at>$2`, [hash(token), new Date().toISOString()]);
-    if (!row) throw new AppError(404, "NOT_FOUND", "Private report not available or link expired.");
+    if (!row) throw new AppError(404, "NOT_FOUND", "This gift was not found. The link may have expired.");
     return receipt(row);
   }
 

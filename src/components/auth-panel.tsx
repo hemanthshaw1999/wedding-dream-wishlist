@@ -13,6 +13,7 @@ export function AuthPanel({ onSignedIn, demo = true, entry = "sign-in", returnTo
 }) {
   const [mode, setMode] = useState<Mode>(entry === "verification-return" || entry === "verification-error" ? "sign-in" : entry);
   const [name, setName] = useState("");
+  const [starterRole, setStarterRole] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const { busy, start, finish } = useRequestLock();
@@ -51,13 +52,13 @@ export function AuthPanel({ onSignedIn, demo = true, entry = "sign-in", returnTo
     try {
       if (mode === "sign-up") {
         const result = await authClient.signUp.email({ name, email: email.trim(), password, callbackURL });
-        if (result.error) { setError(demo ? "Check your registration details and try again. Use a fictional @example.test address and a 12-128 character password." : "Check your registration details and try again. Use a valid email address and a 12-128 character password."); return; }
+        if (result.error) { setError(demo ? "Check your registration details and try again. Use a valid email address and a 12-128 character password." : "Check your registration details and try again. Use a valid email address and a 12-128 character password."); return; }
         setPassword("");
         setMode("verify"); setMessage(deliveryMessage);
       } else if (mode === "recover") {
         const result = await authClient.requestPasswordReset({ email: email.trim(), redirectTo: "/reset-password" });
         if (result.error) { setError("Recovery could not be requested. Wait and try again."); return; }
-        setMessage(demo ? "If an eligible account exists, a recovery link is in the private local mailbox. No email was sent." : "If an eligible account exists, a recovery message has been queued. Delivery may be delayed; check your inbox and spam folder.");
+        setMessage(demo ? "If an eligible account exists, a recovery link is in the private local mailbox." : "If an eligible account exists, a recovery message has been queued. Delivery may be delayed; check your inbox and spam folder.");
       } else {
         const result = await authClient.signIn.email({ email: email.trim(), password, rememberMe: false });
         if (result.error?.code === "EMAIL_NOT_VERIFIED") {
@@ -74,20 +75,24 @@ export function AuthPanel({ onSignedIn, demo = true, entry = "sign-in", returnTo
   }
   return (
     <section className="panel auth-panel" aria-labelledby="auth-title">
-      <p className="eyebrow">{mode === "verify" ? "Next / Verify your email" : "Your private workspace"}</p>
+      <p className="eyebrow">{mode === "verify" ? "Next / Verify your email" : "Your wedding, your way"}</p>
       <h2 ref={titleRef} tabIndex={-1} id="auth-title">{mode === "sign-in" ? "Sign in" : mode === "sign-up" ? "Create your own account" : mode === "verify" ? "Check your verification message" : "Recover account"}</h2>
-      <p>{mode === "sign-in" ? "Welcome back. Your drafts and guest reports stay private." : mode === "sign-up" ? "Create an account, verify your email, then sign in to start your first wishlist." : mode === "recover" ? "Request a private link to choose a new password." : <>Verify <strong className="break-text">{email}</strong>, then return here to sign in. Already verified? Continue below.</>}</p>
+      <p>{mode === "sign-in" ? "Welcome back. A little space to plan your happily ever after. Your drafts and guest reports stay private." : mode === "sign-up" ? "Either partner can start with their own email." : mode === "recover" ? "Request a private link to choose a new password." : <>Verify <strong className="break-text">{email}</strong>, then return here to sign in. Already verified? Continue below.</>}</p>
       {mode === "verify" && <div className="verification-next">
         <button className="button" disabled={busy} onClick={() => changeMode("sign-in")}>Continue to sign in</button>
         <button className="text-button" disabled={busy} onClick={resend}>{busy ? "Requesting..." : "Resend verification message"}</button>
       </div>}
-      {demo && <div className="demo-hint">Local demo: fictional <code>@example.test</code> addresses only. No real email is sent.<details><summary>How to get your private verification or recovery link</summary><p>Run <code>npm run auth:mailbox</code> in the private project terminal and open your link on this computer. Never share that link.</p></details></div>}
+      {demo && <div className="demo-hint">Local mailbox: no email is sent in this setup.<details><summary>How to get your private verification or recovery link</summary><p>Run <code>npm run auth:mailbox</code> in the private project terminal and open your link on this computer. Never share that link.</p></details></div>}
       {linkError && <p className="notice">This verification link could not be used. It may have expired. Enter your email below and request another verification message.</p>}
       {mode !== "verify" && <form onSubmit={submit} aria-busy={busy}>
         <fieldset className="form-fields" disabled={busy} aria-label="Account details">
-        {mode === "sign-up" && <><label htmlFor="account-name">Your display name</label><input id="account-name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} autoComplete="nickname" /></>}
-        <label htmlFor="account-email">{demo ? "Account email (fictional)" : "Account email"}</label>
-        <input id="account-email" required type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={demo ? "your-name@example.test" : "you@example.com"} maxLength={254} />
+        {mode === "sign-up" && <>{demo && <fieldset className="starter-role"><legend>Who is starting the wishlist?</legend><div className="role-options">
+          <label><input type="radio" name="starter-role" value="bride" required checked={starterRole === "bride"} onChange={() => setStarterRole("bride")} />Bride</label>
+          <label><input type="radio" name="starter-role" value="groom" required checked={starterRole === "groom"} onChange={() => setStarterRole("groom")} />Groom</label>
+          <label><input type="radio" name="starter-role" value="partner" required checked={starterRole === "partner"} onChange={() => setStarterRole("partner")} />Another role</label>
+        </div><small>Preview choice only, not saved. Partner access is not enabled yet.</small></fieldset>}<label htmlFor="account-name">Your display name</label><input id="account-name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} autoComplete="nickname" /></>}
+        <label htmlFor="account-email">{demo ? "Account email" : "Account email"}</label>
+        <input id="account-email" required type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={demo ? "you@example.com" : "you@example.com"} maxLength={254} />
         {mode !== "recover" && <><label htmlFor="account-password">Password</label><PasswordInput key={mode} id="account-password" required minLength={mode === "sign-up" ? 12 : 1} maxLength={128} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === "sign-up" ? "new-password" : "current-password"} aria-describedby={mode === "sign-up" ? "password-hint" : undefined} />{mode === "sign-up" && <small id="password-hint">12-128 characters. Use a unique password.</small>}</>}
         </fieldset>
         <button className="button" type="submit" disabled={busy}>{busy ? "Please wait..." : mode === "sign-up" ? "Create account" : mode === "recover" ? "Request recovery link" : "Sign in"}</button>

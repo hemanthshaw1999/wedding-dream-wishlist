@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     if (new URL(request.url).pathname.endsWith("/sign-up/email")) {
       if (applicationConfig().mode === "demo" && (!body || typeof body !== "object" || !("email" in body) ||
         typeof body.email !== "string" || !/^[a-z0-9._+-]{1,64}@example\.test$/i.test(body.email))) {
-        return json({ error: { code: "SYNTHETIC_ONLY", message: "Use a fictional name@example.test address in this local-only environment." } }, 422);
+        return json({ error: { code: "SYNTHETIC_ONLY", message: "Use a name@example.test address in this local-only environment." } }, 422);
       }
       if (body && typeof body === "object" && "image" in body) return json({ error: { code: "IMAGE_DISABLED", message: "Remote profile images are disabled." } }, 422);
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { WeddingMark } from "./wedding-mark";
 import type { ClaimReceipt } from "@/lib/claims";
 import { formatINR } from "@/lib/money";
 import { requestJson } from "./client-api";
@@ -26,7 +27,7 @@ export function GuestStatus() {
       window.history.replaceState(null, "", "/gift-status");
       const result = await requestJson<ClaimReceipt>("/api/guest/status", "POST", { token: key });
       if (window.location.hash && window.location.hash.slice(1) !== key) {
-        setError("A different private link was opened. Check report status again to view that report.");
+        setError("A different private link was opened. Check status again to see that gift.");
         return;
       }
       window.history.replaceState(null, "", "/gift-status");
@@ -58,5 +59,5 @@ export function GuestStatus() {
     }
     catch { setError("Could not clear this tab's stored key. Clear this site's browser data or close this tab on a shared device."); }
   }
-  return <section className="panel prose"><h1>Your private report</h1><p>{receipt?.mode === "upi" ? "Live direct UPI - manual couple confirmation only." : "Demo - no real money."} This link shows only the report associated with its private key. Never share it publicly.</p><p className="muted">Checking keeps only the random key in this tab&apos;s session storage so reloading works. Forget it before leaving a shared device; keep your original private link if you want to return.</p><div className="actions"><button className="button" disabled={busy} onClick={check}>{busy ? "Checking..." : "Check report status"}</button><button className="text-button" disabled={busy} onClick={forget}>Forget private key in this tab</button></div>{storageWarning && <p role="status" className="notice">{storageWarning}</p>}{error && <p role="alert" className="error-box">{error}</p>}{receipt && <div role="status"><h2>{receipt.status === "owner_confirmed" ? (receipt.mode === "upi" ? "Owner-confirmed report" : "Owner-confirmed demo report") : receipt.status.replaceAll("_", " ")}</h2><p>{formatINR(receipt.amountPaise)} toward {receipt.goalTitle}</p><p>Recipient label: {receipt.recipientLabel}</p>{receipt.listedPublicly && <div><p>Your name and amount are set to show on this wishlist&apos;s supporters list once the couple confirms (or while confirmed).</p><button className="button secondary" disabled={busy} onClick={withdraw}>Remove me from the supporters list</button><p className="muted">Your gift stays on record and in the progress total. Only the public listing is removed.</p></div>}<p>Reference: {receipt.id}</p><p>Owner confirmation is a manual declaration, never bank/provider verification. This is not a tax receipt.</p></div>}</section>;
+  return <section className="panel prose gift-status"><WeddingMark /><h1>Your gift</h1><p className="gift-intro">A little love, sent their way.</p><p>See whether the couple has confirmed it. Anyone holding your private link can see this status. Keep it to yourself.</p><div className="actions"><button className="button" disabled={busy} onClick={check}>{busy ? "Checking..." : "Check status"}</button><button className="text-button" disabled={busy} onClick={forget}>Forget this link on this device</button></div>{storageWarning && <p role="status" className="notice">{storageWarning}</p>}{error && <p role="alert" className="error-box">{error}</p>}{receipt && <div role="status"><h2>{({ owner_confirmed: "Confirmed by the couple", reported: "Waiting for the couple to confirm", needs_review: "The couple is looking into it", rejected: "The couple could not confirm this gift" } as Record<string, string>)[receipt.status] ?? receipt.status.replaceAll("_", " ")}</h2><p>{formatINR(receipt.amountPaise)} toward {receipt.goalTitle}</p>{receipt.listedPublicly && <div><p>You chose to be listed as a supporter, ranked by gift size once confirmed. Your exact amount stays hidden.</p><button className="button secondary" disabled={busy} onClick={withdraw}>Remove me from the supporters list</button><p className="muted">Your gift still counts. Only your name is removed from the list.</p></div>}<p className="muted">This is not a tax receipt.</p></div>}</section>;
 }

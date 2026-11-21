@@ -72,7 +72,7 @@ export class WishlistStore {
       currency: "INR", paymentMode: row.payment_mode,
       recipientSnapshot: recipient ? { id: recipient.id, label: recipient.label, mode: "demo" } : null,
       liveRecipient: showLive ? { id: live.id, version: live.version, upiId: live.upi_id, label: live.label } : null,
-      supporters: supporters.map((item) => ({ name: item.name, amountPaise: integer(item.amount), goalTitle: item.goal_title })),
+      supporters: supporters.map((item, index) => ({ name: item.name, rank: index + 1, relativeImpact: Math.max(10, Math.round(integer(item.amount) / Math.max(1, integer(supporters[0].amount)) * 10) * 10), goalTitle: item.goal_title })),
       goals: goals.map((goal) => ({
         id: goal.id, title: goal.title, description: goal.description,
         targetPaise: integer(goal.target_paise), confirmedPaise: integer(goal.confirmed_paise), archivedAt: goal.archived_at,
@@ -184,7 +184,7 @@ export class WishlistStore {
         if (row.live_recipient_id === target.id) throw new AppError(409, "NO_CHANGE", "This recipient version is already active.");
       } else {
         const existing = await tx.get("SELECT id FROM contributions WHERE wishlist_id=$1 LIMIT 1", [id]);
-        if (existing) throw new AppError(409, "HISTORY_LOCKED", "A wishlist with existing demo reports can never become a live-payment wishlist. Create a fresh wishlist for live payments.");
+        if (existing) throw new AppError(409, "HISTORY_LOCKED", "A wishlist with existing reports can never become a live-payment wishlist. Create a fresh wishlist for live payments.");
       }
       await tx.run("UPDATE wishlists SET payment_mode='upi',funding_policy='allow_overfunding',live_recipient_id=$1,version=version+1,updated_at=$2 WHERE id=$3", [target.id, now, id]);
       await tx.run("INSERT INTO audit_entries VALUES($1,$2,$3,$4,$5,$5,$6)", [randomUUID(), id, ownerId,

@@ -92,7 +92,8 @@ describe("supporters list end to end (database level)", () => {
     }
     await cash.add(wishlist.id, "owner-a", gift({ donorName: "Cash Uncle" }));
     let pub = await wishlists.getPublic(wishlist.slug);
-    expect(pub.supporters.map((s) => [s.name, s.amountPaise])).toEqual([["Big Public", 30000], ["Small Public", 10000]]);
+    expect(pub.supporters.map((s) => [s.name, s.rank, s.relativeImpact])).toEqual([["Big Public", 1, 100], ["Small Public", 2, 30]]);
+    expect(JSON.stringify(pub.supporters)).not.toContain("amount");
     const total = pub.goals[0].confirmedPaise;
     expect(total).toBe(10000 + 30000 + 20000 + 25000 + 40000);
     await claims.withdrawListing(inputs[1].token);
