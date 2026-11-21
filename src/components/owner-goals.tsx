@@ -56,14 +56,14 @@ export function OwnerGoals({ wishlist, busy, onChange, onRefresh }: Props) {
   }
   return (
     <section className="panel owner-controls" aria-labelledby="manage-goals-title">
-      <h2 id="manage-goals-title">Manage goals</h2>
-      <p>Changes are audited. Up to 20 goals including archived goals; archiving never deletes reports or confirmed progress.</p>
+      <details className="manage-goals"><summary className="section-summary"><h2 id="manage-goals-title">Manage goals</h2><span className="muted">{wishlist.goals.length} {wishlist.goals.length === 1 ? "goal" : "goals"}</span></summary>
+      <p>Up to 20 goals. Archiving keeps gifts and progress.</p>
       {!editable && <p>Goals are read-only for a closed, archived or expired wishlist.</p>}
-      {editable && <>
-        <label htmlFor="goal-change-reason">Reason for goal change (private)</label>
+      {editable && <details className="goal-change-tools" open={Boolean(draft)}><summary>Change reason and reorder tools</summary>
+        <label htmlFor="goal-change-reason">Reason for the change (private)</label>
         <input id="goal-change-reason" value={reason} maxLength={300} onChange={(event) => setReason(event.target.value)} disabled={busy} />
         <small>A reason of 1-300 characters is required for every edit, reorder, archive or restore. Guests see target revisions, not this reason.</small>
-      </>}
+      </details>}
       <div className="actions">
         <button type="button" className="button secondary" onClick={() => edit()} disabled={!editable || busy || Boolean(draft) || wishlist.goals.length >= 20}>Add goal</button>
         <button type="button" className="button secondary" onClick={onRefresh} disabled={busy}>Refresh wishlist</button>
@@ -92,9 +92,10 @@ export function OwnerGoals({ wishlist, busy, onChange, onRefresh }: Props) {
           <p>Target: {formatINR(goal.targetPaise)}. Confirmed: {formatINR(goal.confirmedPaise)}.</p>
           <div className="actions">
             <button type="button" className="button secondary" disabled={!editable || busy || Boolean(draft) || Boolean(goal.archivedAt)} onClick={() => edit(goal)} aria-label={`Edit ${goal.title}`}>Edit</button>
+            <details className="goal-more"><summary>More actions</summary>
             <button type="button" className="button secondary" disabled={!editable || busy || Boolean(draft) || !reason.trim()} onClick={() => change({ action: goal.archivedAt ? "restore" : "archive", goalId: goal.id, version: wishlist.version })} aria-label={`${goal.archivedAt ? "Restore" : "Archive"} ${goal.title}`}>{goal.archivedAt ? "Restore" : "Archive"}</button>
             <button type="button" className="button secondary" disabled={!editable || busy || Boolean(draft) || !reason.trim() || index === 0} onClick={() => move(index, -1)} aria-label={`Move ${goal.title} up`}>Move up</button>
-            <button type="button" className="button secondary" disabled={!editable || busy || Boolean(draft) || !reason.trim() || index === wishlist.goals.length - 1} onClick={() => move(index, 1)} aria-label={`Move ${goal.title} down`}>Move down</button>
+            <button type="button" className="button secondary" disabled={!editable || busy || Boolean(draft) || !reason.trim() || index === wishlist.goals.length - 1} onClick={() => move(index, 1)} aria-label={`Move ${goal.title} down`}>Move down</button></details>
           </div>
         </li>)}
       </ol>
@@ -111,7 +112,7 @@ export function OwnerGoals({ wishlist, busy, onChange, onRefresh }: Props) {
             {entry.before && (entry.before.title !== entry.after.title || entry.before.description !== entry.after.description) && <p>Previous purpose: {entry.before.title} - {entry.before.description || "(no description)"}. New purpose: {entry.after.title} - {entry.after.description || "(no description)"}.</p>}
           </li>)}</ol>
         </>}
-      </details>
+      </details></details>
     </section>
   );
 }
